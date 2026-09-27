@@ -232,7 +232,7 @@
       </div>
       <div>
         <h2>The screen actually goes off</h2>
-        <p>Not a black window on top — the backlight itself drops to zero. When you stop, your brightness comes back exactly where it was, even if the app was force-quit.</p>
+        <p>Leave it alone for the time you pick and the backlight itself drops to zero — not a black window on top. Touch the mouse or keyboard and it comes straight back, exactly where it was.</p>
       </div>
       <div>
         <h2>Lid closed, still working</h2>
@@ -287,7 +287,7 @@
     const dark = laptop.classList.toggle("dark");
     moon.setAttribute("aria-pressed", String(dark));
     moon.setAttribute("aria-label", dark ? "Allnighter: turn the screen back on" : "Allnighter: turn the screen off");
-    status.textContent = dark ? "Screen off, Mac still awake. Right-click again to turn it back on." : "Right-click the moon in the menu bar.";
+    status.textContent = dark ? "No input for a while: screen off, Mac still awake. Right-click to wake it." : "Right-click the moon in the menu bar.";
   }
   // 실제 앱처럼 우클릭으로 켜고 끈다. 터치·키보드로는 그냥 누르면 된다.
   moon.addEventListener("contextmenu", (event) => {

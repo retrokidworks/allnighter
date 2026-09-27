@@ -13,9 +13,11 @@ where it was when you stop. It can also keep a MacBook awake with the lid closed
 
 **Stay awake.** Start indefinitely or for 15 minutes to 8 hours. Stop any time.
 
-**Dim display to black.** Turns the built-in backlight all the way down — not a
-black overlay, the backlight itself. Your previous brightness is saved to disk
-first, so even if the app is force-quit mid-session, the next launch restores it.
+**Dim display when idle.** Pick a delay — 1 to 30 minutes. While a session is on
+and you haven't touched the mouse or keyboard for that long, the built-in
+backlight drops all the way to zero (not a black overlay — the backlight itself).
+Touch anything and it comes straight back to where it was. Your brightness is
+saved to disk first, so even a force-quit mid-session is restored on next launch.
 
 **Stay awake with lid closed.** Keeps a MacBook running with the lid shut.
 This uses a small privileged helper

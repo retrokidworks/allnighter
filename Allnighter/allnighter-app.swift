@@ -32,6 +32,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     private static let durations = [15, 30, 60, 120, 240, 480]
+    // 세션 중 입력이 없을 때 화면을 어둡게 하기까지 기다리는 시간(분)
+    private static let dimDelays = [1, 2, 5, 10, 15, 30]
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
@@ -98,7 +100,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(startFor)
         menu.addItem(.separator())
         #if !APP_STORE
-        menu.addItem(toggleItem("Dim display to black", on: session.dimDisplay) { $0.session.setDimDisplay(!$0.session.dimDisplay) })
+        let dimAfter = NSMenu()
+        dimAfter.addItem(toggleItem("Off", on: session.dimAfterMinutes == nil) { $0.session.setDimAfter(minutes: nil) })
+        for minutes in Self.dimDelays {
+            dimAfter.addItem(toggleItem(Self.label(minutes: minutes), on: session.dimAfterMinutes == minutes) { $0.session.setDimAfter(minutes: minutes) })
+        }
+        let dimItem = NSMenuItem(title: "Dim display after", action: nil, keyEquivalent: "")
+        dimItem.submenu = dimAfter
+        menu.addItem(dimItem)
         menu.addItem(toggleItem("Stay awake with lid closed", on: session.lidAwake) { $0.session.setLidAwake(!$0.session.lidAwake) })
         #endif
         menu.addItem(toggleItem("Launch at login", on: session.launchAtLogin) { $0.session.setLaunchAtLogin(!$0.session.launchAtLogin) })
@@ -119,7 +128,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     private static func label(minutes: Int) -> String {
-        minutes < 60 ? "\(minutes) minutes" : "\(minutes / 60) hour\(minutes == 60 ? "" : "s")"
+        if minutes == 1 { return "1 minute" }
+        return minutes < 60 ? "\(minutes) minutes" : "\(minutes / 60) hour\(minutes == 60 ? "" : "s")"
     }
 
     private func disabledItem(_ title: String) -> NSMenuItem {
