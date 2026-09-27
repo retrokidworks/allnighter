@@ -64,7 +64,9 @@ xcrun stapler staple "$dmg"
 spctl -a -t open --context context:primary-signature -vv "$dmg"
 
 sha=$(shasum -a 256 "$dmg" | cut -d' ' -f1)
-gh release create "v$version" "$dmg" --repo "$repo" --title "Allnighter $version" --generate-notes
+# 버전 없는 사본도 올린다 — 소개 페이지의 releases/latest/download/Allnighter.dmg 가 늘 최신판을 받는다.
+cp "$dmg" "$out/Allnighter.dmg"
+gh release create "v$version" "$dmg" "$out/Allnighter.dmg" --repo "$repo" --title "Allnighter $version" --generate-notes
 # Homebrew cask 를 새 버전으로 맞춘다. 올리기는 scripts/personal-publish.sh homebrew-tap.
 cask=../homebrew-tap/Casks/allnighter.rb
 sed -i '' -e "s/^  version \".*\"/  version \"$version\"/" -e "s/^  sha256 \".*\"/  sha256 \"$sha\"/" "$cask"
