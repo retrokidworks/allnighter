@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<!--
+  Mac App Store 스크린샷(2880×1800). App Store 판에 있는 기능만 보여 준다(화면 어둡게·뚜껑 닫기 없음).
+  렌더: store/render.sh — ?shot=1, ?shot=2 를 1440×900 창·배율 2 로 찍는다.
+-->
+<head>
+<meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&display=block" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; width: 1440px; height: 900px; overflow: hidden; }
+  body {
+    font-family: "Bricolage Grotesque", system-ui, sans-serif;
+    color: #ebe8f7;
+    background: linear-gradient(180deg, #262c5a 0%, #161a38 50%, #0d1026 100%);
+    position: relative;
+  }
+  .copy { position: absolute; left: 96px; top: 250px; width: 620px; }
+  h1 { font-size: 76px; font-weight: 800; line-height: 0.98; letter-spacing: -0.03em; margin: 0 0 28px; }
+  p { font-size: 28px; line-height: 1.4; color: #9da2c8; margin: 0; font-weight: 600; }
+
+  /* macOS 메뉴바와 열린 메뉴 */
+  .desktop {
+    position: absolute; right: 64px; top: 120px; width: 620px; height: 660px;
+    border-radius: 22px; overflow: hidden;
+    background: linear-gradient(160deg, #3b4b8f, #7a5aa6 55%, #d98a6a);
+    box-shadow: 0 40px 90px rgba(0, 0, 0, 0.5);
+  }
+  .menubar {
+    height: 34px; display: flex; align-items: center; justify-content: flex-end; gap: 18px; padding: 0 16px;
+    background: rgba(20, 22, 40, 0.35); backdrop-filter: blur(10px);
+    font: 500 15px -apple-system, system-ui, sans-serif; color: #fff;
+  }
+  .item { display: grid; place-items: center; width: 34px; height: 26px; border-radius: 6px; }
+  .item.open { background: rgba(255, 255, 255, 0.25); }
+  .item svg { width: 19px; height: 19px; }
+  .menu {
+    position: absolute; top: 40px; right: 64px; width: 330px; padding: 6px;
+    border-radius: 12px; background: rgba(40, 42, 58, 0.86); backdrop-filter: blur(24px);
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.45), inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+    font: 400 15px -apple-system, system-ui, sans-serif; color: #fff;
+  }
+  .row { display: flex; align-items: center; height: 28px; padding: 0 12px 0 28px; border-radius: 6px; position: relative; }
+  .row.dim { color: rgba(255, 255, 255, 0.45); }
+  .row.hot { background: #3a82f7; }
+  .row .check { position: absolute; left: 10px; }
+  .row .chev { margin-left: auto; opacity: 0.8; }
+  .row .key { margin-left: auto; color: rgba(255, 255, 255, 0.45); }
+  .sep { height: 1px; margin: 5px 10px; background: rgba(255, 255, 255, 0.14); }
+  .submenu { top: 102px; right: 14px; width: 200px; }
+  .shot2 .menu.main { right: 208px; }
+</style>
+</head>
+<body>
+<div class="copy" id="copy"></div>
+<div class="desktop" id="desktop"></div>
+<script>
+  const moon = (filled) => `<svg viewBox="0 0 24 24" fill="${filled ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="${filled ? 0 : 1.8}"><path d="M20.5 14.6A8.5 8.5 0 0 1 9.4 3.5a8.5 8.5 0 1 0 11.1 11.1Z"/></svg>`
+  const row = (text, extra = '') => `<div class="row ${extra}">${text}</div>`
+  const shots = {
+    1: {
+      title: 'Keep your Mac awake from the menu bar.',
+      body: 'Downloads, builds, renders and long calls keep going while you step away.',
+      active: false,
+      menu: [
+        row('Start'),
+        row('Start for<span class="chev">›</span>'),
+        '<div class="sep"></div>',
+        row('Launch at login', ''),
+        row('<span class="check">✓</span>Play sounds'),
+        row('Right-click the icon to start or stop', 'dim'),
+        '<div class="sep"></div>',
+        row('Quit Allnighter<span class="key">⌘Q</span>'),
+      ],
+    },
+    2: {
+      title: 'Right-click to start. Right-click to stop.',
+      body: 'Or pick a time — from 15 minutes to 8 hours — and Allnighter stops on its own.',
+      active: true,
+      menu: [
+        row('Awake until 3:40 AM', 'dim'),
+        row('Stop'),
+        row('Start for<span class="chev">›</span>', 'hot'),
+        '<div class="sep"></div>',
+        row('<span class="check">✓</span>Launch at login'),
+        row('<span class="check">✓</span>Play sounds'),
+        row('Right-click the icon to start or stop', 'dim'),
+        '<div class="sep"></div>',
+        row('Quit Allnighter<span class="key">⌘Q</span>'),
+      ],
+      submenu: ['15 minutes', '30 minutes', '1 hour', '2 hours', '4 hours', '8 hours'].map((t, i) => row(t, i === 3 ? 'hot' : '')),
+    },
+  }
+  const shot = shots[new URLSearchParams(location.search).get('shot')]
+  document.body.className = `shot${new URLSearchParams(location.search).get('shot')}`
+  document.getElementById('copy').innerHTML = `<h1>${shot.title}</h1><p>${shot.body}</p>`
+  document.getElementById('desktop').innerHTML = `
+    <div class="menubar">
+      <span class="item open">${moon(shot.active)}</span>
+      <span>Sat 2:40 AM</span>
+    </div>
+    <div class="menu main">${shot.menu.join('')}</div>
+    ${shot.submenu ? `<div class="menu submenu">${shot.submenu.join('')}</div>` : ''}`
+</script>
+</body>
+</html>
