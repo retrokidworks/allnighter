@@ -38,6 +38,7 @@ targets:
       properties: &infoProperties
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        ITSAppUsesNonExemptEncryption: false
         LSUIElement: true
         CFBundleDisplayName: Allnighter
         LSApplicationCategoryType: public.app-category.utilities
