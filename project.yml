@@ -36,6 +36,8 @@ targets:
     info:
       path: Allnighter/Info.plist
       properties: &infoProperties
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         LSUIElement: true
         CFBundleDisplayName: Allnighter
         LSApplicationCategoryType: public.app-category.utilities

@@ -32,6 +32,8 @@ xcodebuild -project Allnighter.xcodeproj -scheme Allnighter -configuration Relea
 app=build/release-derived/Build/Products/Release/Allnighter.app
 
 # 인텔·Apple Silicon 둘 다 들어간 유니버설인지, 헬퍼까지 Developer ID·hardened runtime 으로 서명됐는지 확인한다.
+built_version=$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' "$app/Contents/Info.plist")
+[ "$built_version" = "$version" ] || { echo "앱 버전이 $built_version 이다(기대: $version)" >&2; exit 1; }
 for executable in Allnighter AllnighterHelper; do
   [ "$(lipo -archs "$app/Contents/MacOS/$executable")" = "x86_64 arm64" ] || { echo "$executable 가 유니버설이 아니다" >&2; exit 1; }
 done
