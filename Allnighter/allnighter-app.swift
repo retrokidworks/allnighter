@@ -71,8 +71,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func observeIcon() {
         withObservationTracking {
             let isActive = session.isActive
-            let symbol = isActive ? "moon.stars.fill" : "moon.zzz"
-            statusItem?.button?.image = NSImage(systemSymbolName: symbol, accessibilityDescription: "Allnighter")
+            statusItem?.button?.image = EyeIcon.make(open: isActive)
             if isActive != wasActive, playSounds {
                 NSSound(named: isActive ? "Glass" : "Bottle")?.play()
             }

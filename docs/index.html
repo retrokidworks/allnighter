@@ -105,7 +105,7 @@
     font-size: 12px;
     color: #fff;
   }
-  .moon {
+  .eye {
     display: grid;
     place-items: center;
     width: 26px;
@@ -117,8 +117,8 @@
     color: #fff;
     cursor: pointer;
   }
-  .moon:hover, .moon[aria-pressed="true"] { background: rgba(255, 255, 255, 0.22); }
-  .moon svg { width: 16px; height: 16px; }
+  .eye:hover, .eye[aria-pressed="true"] { background: rgba(255, 255, 255, 0.22); }
+  .eye svg { width: 16px; height: 16px; }
   .terminal {
     position: absolute;
     left: 7%;
@@ -207,9 +207,7 @@
           <div class="lid">
             <div class="screen">
               <div class="menubar">
-                <button class="moon" id="moon" type="button" aria-pressed="false" aria-label="Allnighter: turn the screen off">
-                  <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20.5 14.6A8.5 8.5 0 0 1 9.4 3.5a8.5 8.5 0 1 0 11.1 11.1Z"/></svg>
-                </button>
+                <button class="eye" id="eye" type="button" aria-pressed="false" aria-label="Allnighter: turn the screen off"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M2 7.5C5.5 12.4 12.5 12.4 16 7.5M5.2 9.9L4.1 12.1M9 11.1V13.6M12.8 9.9L13.9 12.1"/></svg></button>
                 <span id="clock">2:14 AM</span>
               </div>
               <div class="terminal" id="terminal" aria-hidden="true"></div>
@@ -219,7 +217,7 @@
           <div class="base"></div>
         </div>
         <div class="caption" aria-live="polite">
-          <span id="status" class="hint">Right-click the moon in the menu bar.</span>
+          <span id="status" class="hint">Right-click the eye in the menu bar.</span>
           <span>Build still running: <strong id="count">0</strong> files</span>
         </div>
       </div>
@@ -262,7 +260,10 @@
   const terminal = document.getElementById("terminal");
   const count = document.getElementById("count");
   const laptop = document.getElementById("laptop");
-  const moon = document.getElementById("moon");
+  const eye = document.getElementById("eye");
+  // 앱 메뉴바 아이콘과 같은 그림: 꺼짐은 감은 눈, 켜짐은 뜬 눈.
+  const closedEye = '<svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M2 7.5C5.5 12.4 12.5 12.4 16 7.5M5.2 9.9L4.1 12.1M9 11.1V13.6M12.8 9.9L13.9 12.1"/></svg>'
+  const openEye = '<svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="M1.8 9C5.5 2.8 12.5 2.8 16.2 9C12.5 15.2 5.5 15.2 1.8 9Z"/><circle cx="9" cy="9" r="2.7" fill="currentColor" stroke="none"/></svg>'
   const status = document.getElementById("status");
   const modules = ["core", "render", "audio", "net", "ui", "store", "sync", "export"];
   let files = 0;
@@ -286,16 +287,17 @@
 
   function toggle() {
     const dark = laptop.classList.toggle("dark");
-    moon.setAttribute("aria-pressed", String(dark));
-    moon.setAttribute("aria-label", dark ? "Allnighter: turn the screen back on" : "Allnighter: turn the screen off");
-    status.textContent = dark ? "No input for a while: screen off, Mac still awake. Right-click to wake it." : "Right-click the moon in the menu bar.";
+    eye.setAttribute("aria-pressed", String(dark));
+    eye.innerHTML = dark ? openEye : closedEye;
+    eye.setAttribute("aria-label", dark ? "Allnighter: turn the screen back on" : "Allnighter: turn the screen off");
+    status.textContent = dark ? "No input for a while: screen off, Mac still awake. Right-click to wake it." : "Right-click the eye in the menu bar.";
   }
   // 실제 앱처럼 우클릭으로 켜고 끈다. 터치·키보드로는 그냥 누르면 된다.
-  moon.addEventListener("contextmenu", (event) => {
+  eye.addEventListener("contextmenu", (event) => {
     event.preventDefault();
     toggle();
   });
-  moon.addEventListener("click", toggle);
+  eye.addEventListener("click", toggle);
 
   const brew = document.getElementById("brew");
   brew.addEventListener("click", async () => {

@@ -26,12 +26,12 @@ LISTING = {
     "name": "Allnighter – Keep Awake",
     "subtitle": "Keep your Mac from sleeping",
     "keywords": "awake,no sleep,prevent sleep,stay awake,insomnia,menu bar,idle,display,screen,timer,battery",
-    "promotionalText": "Right-click the moon in the menu bar to start. Right-click again to stop.",
+    "promotionalText": "Right-click the eye in the menu bar to start. Right-click again to stop.",
     "description": """Allnighter keeps your Mac awake, so downloads, builds, renders, uploads and long calls keep going while you step away — and it can turn the screen down to black while it works.
 
 Pick how long to wait under Dim display after. When you haven't touched the mouse or keyboard for that long, Allnighter lowers the display brightness all the way. Move the mouse and it comes back to the brightness you chose.
 
-Right-click the moon in the menu bar to start. Right-click again to stop. Or pick a time — 15 or 30 minutes, or 1, 2, 4 or 8 hours — and Allnighter stops on its own.
+Right-click the eye in the menu bar to start. Right-click again to stop. Or pick a time — 15 or 30 minutes, or 1, 2, 4 or 8 hours — and Allnighter stops on its own.
 
 • Lives in the menu bar, no Dock icon
 • Dims the display when you're away, brings it back when you return
@@ -217,7 +217,7 @@ def step_review():
     detail = next(i for i in source.get("included", []) if i["type"] == "appStoreReviewDetails")["attributes"]
     contact = {k: detail[k] for k in ("contactFirstName", "contactLastName", "contactPhone", "contactEmail")}
     attrs = {**contact, "demoAccountRequired": False,
-             "notes": "Menu bar app with no Dock icon or window. Click the moon icon in the menu bar to open the menu and choose "
+             "notes": "Menu bar app with no Dock icon or window. Click the eye icon in the menu bar to open the menu and choose "
                       "Start, or right-click the icon to start and stop. While a session is on, the Mac does not go to idle sleep "
                       "(visible in Terminal with `pmset -g assertions`).\n\n"
                       "Dim display after (optional): the app posts the system brightness-down / brightness-up key events "

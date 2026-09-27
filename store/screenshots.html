@@ -56,7 +56,8 @@
 <div class="copy" id="copy"></div>
 <div class="desktop" id="desktop"></div>
 <script>
-  const moon = (filled) => `<svg viewBox="0 0 24 24" fill="${filled ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="${filled ? 0 : 1.8}"><path d="M20.5 14.6A8.5 8.5 0 0 1 9.4 3.5a8.5 8.5 0 1 0 11.1 11.1Z"/></svg>`
+  // 앱 메뉴바 아이콘과 같은 그림: 꺼짐은 감은 눈, 켜짐은 뜬 눈.
+  const eye = (open) => open ? '<svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="M1.8 9C5.5 2.8 12.5 2.8 16.2 9C12.5 15.2 5.5 15.2 1.8 9Z"/><circle cx="9" cy="9" r="2.7" fill="currentColor" stroke="none"/></svg>' : '<svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M2 7.5C5.5 12.4 12.5 12.4 16 7.5M5.2 9.9L4.1 12.1M9 11.1V13.6M12.8 9.9L13.9 12.1"/></svg>'
   const row = (text, extra = '') => `<div class="row ${extra}">${text}</div>`
   const shots = {
     1: {
@@ -105,7 +106,7 @@
   document.getElementById('copy').innerHTML = `<h1>${shot.title}</h1><p>${shot.body}</p>`
   document.getElementById('desktop').innerHTML = `
     <div class="menubar">
-      <span class="item open">${moon(shot.active)}</span>
+      <span class="item open">${eye(shot.active)}</span>
       <span>Sat 2:40 AM</span>
     </div>
     <div class="menu main">${shot.menu.join('')}</div>
