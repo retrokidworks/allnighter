@@ -1,7 +1,8 @@
 # Allnighter
 
-A macOS menu bar app that keeps your Mac awake — with the screen actually off.
+[![Allnighter — keep your Mac awake with the screen off](docs/screenshot.png)](https://allnighter.retrokidworks.com)
 
+A macOS menu bar app that keeps your Mac awake — with the screen actually off.
 **[allnighter.retrokidworks.com](https://allnighter.retrokidworks.com)**
 
 Most keep-awake apps leave the display glowing. Allnighter can drop the built-in
