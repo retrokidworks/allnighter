@@ -1,2 +1,63 @@
-# allnighter
-Keep your Mac awake with the screen actually off — dim to black, lid-closed mode. Menu bar app.
+# Allnighter
+
+A macOS menu bar app that keeps your Mac awake — with the screen actually off.
+
+Most keep-awake apps leave the display glowing. Allnighter can drop the built-in
+display's backlight to zero while your Mac keeps working, and put it back exactly
+where it was when you stop. It can also keep a MacBook awake with the lid closed.
+
+## What it does
+
+**Stay awake.** Start indefinitely or for 15 minutes to 8 hours. Stop any time.
+
+**Dim display to black.** Turns the built-in backlight all the way down — not a
+black overlay, the backlight itself. Your previous brightness is saved to disk
+first, so even if the app is force-quit mid-session, the next launch restores it.
+
+**Stay awake with lid closed.** Keeps a MacBook running with the lid shut.
+This uses a small privileged helper
+(see below). If the app goes away for any reason, the helper turns the setting
+back off on its own.
+
+## Install
+
+Download the latest `.dmg` from [Releases](https://github.com/retrokidworks/allnighter/releases).
+
+Requires macOS 14 or later.
+
+## How it works
+
+| Feature | macOS mechanism |
+| --- | --- |
+| Stay awake | `IOPMAssertionCreateWithName` (public API) |
+| Dim display | `DisplayServicesSetBrightness` (private framework, loaded at runtime) |
+| Lid closed | `SleepDisabled` power setting — the same thing `pmset disablesleep 1` sets |
+
+The lid-closed setting needs root and, unlike a power assertion, it survives the
+process that set it. So it lives in a LaunchDaemon (`AllnighterHelper`),
+registered with `SMAppService` — macOS asks you to allow it once in
+System Settings › General › Login Items. The helper:
+
+- only accepts connections from Allnighter signed by the same team,
+- turns the setting off the moment the app's connection drops (quit, crash, force-quit),
+- turns it off whenever it starts (so a reboot never leaves it stuck on),
+- re-applies it when the power source changes.
+
+Because two of these use private APIs, the full-featured build is distributed
+here, outside the Mac App Store. An App Store build (`AllnighterAppStore` target)
+compiles those parts out entirely.
+
+## Build
+
+```sh
+brew install xcodegen
+xcodegen generate
+xcodebuild -project Allnighter.xcodeproj -scheme Allnighter -configuration Release build
+```
+
+To sign with your own team, change `DEVELOPMENT_TEAM` in `project.yml` and the
+team ID in `Shared/helper-protocol.swift`.
+
+## License
+
+MIT

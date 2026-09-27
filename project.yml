@@ -1,0 +1,85 @@
+# Allnighter.xcodeproj 는 이 파일에서 만든다: `xcodegen generate`
+# 타깃 두 개가 같은 앱을 만든다.
+#   Allnighter          — 직접 배포판(Developer ID). 화면 밝기 0(DisplayServices 비공개 API)과
+#                         뚜껑 닫기 모드(root 헬퍼)까지 전부.
+#   AllnighterAppStore  — Mac App Store 판. 비공개 API 파일과 헬퍼를 빌드에서 아예 뺀다
+#                         (심사는 바이너리의 심볼을 본다 — 런타임에 끄는 것으로는 부족하다).
+name: Allnighter
+options:
+  bundleIdPrefix: com.retrokidworks
+  deploymentTarget:
+    macOS: "14.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    DEVELOPMENT_TEAM: 6P57Y84B45
+    CODE_SIGN_STYLE: Manual
+    CODE_SIGN_IDENTITY: Apple Development
+    ENABLE_HARDENED_RUNTIME: YES
+    SWIFT_VERSION: "5.0"
+    MARKETING_VERSION: 0.1.0
+    CURRENT_PROJECT_VERSION: 1
+    DEAD_CODE_STRIPPING: YES
+    ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+targets:
+  Allnighter:
+    type: application
+    platform: macOS
+    sources:
+      - path: Allnighter
+      - path: Shared
+      - path: AllnighterHelper/com.retrokidworks.allnighter.helper.plist
+        buildPhase:
+          copyFiles:
+            destination: wrapper
+            subpath: Contents/Library/LaunchDaemons
+    info:
+      path: Allnighter/Info.plist
+      properties: &infoProperties
+        LSUIElement: true
+        CFBundleDisplayName: Allnighter
+        LSApplicationCategoryType: public.app-category.utilities
+        NSHumanReadableCopyright: Copyright © 2026 retrokidworks. MIT License.
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.retrokidworks.allnighter
+        PRODUCT_NAME: Allnighter
+    dependencies:
+      - target: AllnighterHelper
+        copy:
+          destination: executables
+  AllnighterAppStore:
+    type: application
+    platform: macOS
+    sources:
+      - path: Allnighter
+        excludes:
+          - brightness-controller.swift
+          - lid-controller.swift
+    info:
+      path: Allnighter/Info.plist
+      properties: *infoProperties
+    entitlements:
+      path: Allnighter/app-store.entitlements
+      properties:
+        com.apple.security.app-sandbox: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.retrokidworks.allnighter
+        PRODUCT_NAME: Allnighter
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS: APP_STORE
+  AllnighterHelper:
+    type: tool
+    platform: macOS
+    sources:
+      - path: AllnighterHelper
+        excludes:
+          - "*.plist"
+      - path: Shared
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.retrokidworks.allnighter.helper
+        PRODUCT_NAME: AllnighterHelper
+        GENERATE_INFOPLIST_FILE: YES
+        CREATE_INFOPLIST_SECTION_IN_BINARY: YES
+        SKIP_INSTALL: YES
