@@ -153,10 +153,7 @@ final class SessionController {
             // App Store 판은 밝기 키를 보내 어둡게 하는데, 그 키도 입력으로 잡힌다. 어둡게 한 뒤 키를 다 보낼 때까지(settle)
             // 들어온 입력은 무시하고, 그 뒤에 들어온 입력만 사람이 돌아온 것으로 본다.
             let settle: TimeInterval = 2
-            // 되돌린 뒤 이만큼은 macOS 가 밝기를 다시 0 으로 덮어쓰는지 지켜본다(BrightnessController.holdRestored).
-            let hold: TimeInterval = 3
             var dimmedAt: Date?
-            var restoredAt: Date?
             while !Task.isCancelled {
                 guard let self else { return }
                 let idle = CGEventSource.secondsSinceLastEventType(.hidSystemState, eventType: Self.anyInput)
@@ -165,13 +162,6 @@ final class SessionController {
                         if since > settle, idle < since - settle {
                             try brightness.restorePending()
                             dimmedAt = nil
-                            restoredAt = Date()
-                        }
-                    } else if let since = restoredAt.map({ Date().timeIntervalSince($0) }) {
-                        if since < hold {
-                            try brightness.holdRestored()
-                        } else {
-                            restoredAt = nil
                         }
                     } else if idle >= threshold {
                         try brightness.dim()

@@ -10,8 +10,6 @@ final class BrightnessController {
     private let getBrightness: GetBrightness
     private let setBrightness: SetBrightness
     private let savedURL: URL
-    // 마지막으로 되돌린 밝기. holdRestored() 가 다시 적용한다.
-    private var restored: [CGDirectDisplayID: Float] = [:]
 
     init() throws {
         guard let handle = dlopen("/System/Library/PrivateFrameworks/DisplayServices.framework/DisplayServices", RTLD_NOW),
@@ -35,7 +33,6 @@ final class BrightnessController {
 
     func dim() throws {
         guard !isDimmed else { return }
-        restored = [:]
         var saved: [String: Float] = [:]
         for display in try builtInDisplays() {
             var value: Float = 0
@@ -55,29 +52,12 @@ final class BrightnessController {
     func restorePending() throws {
         guard isDimmed else { return }
         let saved = try JSONDecoder().decode([String: Float].self, from: Data(contentsOf: savedURL))
-        var values: [CGDirectDisplayID: Float] = [:]
         for (key, value) in saved {
             guard let display = CGDirectDisplayID(key) else { throw AllnighterError("Corrupt brightness record: \(key)") }
             let result = setBrightness(display, value)
             guard result == 0 else { throw AllnighterError("Could not restore display brightness (\(result))") }
-            values[display] = value
         }
         try FileManager.default.removeItem(at: savedURL)
-        restored = values
-    }
-
-    // 사용자가 오래 자리를 비웠다 돌아오면(UserIsActive 가 풀린 뒤 첫 입력) macOS 가 첫 입력 0.2초쯤 뒤에
-    // 자기가 기억한 밝기(여기서 내린 0)를 한 번 다시 적용해 restorePending() 을 덮어쓴다.
-    // 되돌린 직후 잠깐 이것을 불러, 아직 0 이면 되돌린 밝기를 다시 적용한다.
-    func holdRestored() throws {
-        for (display, value) in restored {
-            var current: Float = 0
-            let read = getBrightness(display, &current)
-            guard read == 0 else { throw AllnighterError("Could not read display brightness (\(read))") }
-            guard current == 0 else { continue }
-            let result = setBrightness(display, value)
-            guard result == 0 else { throw AllnighterError("Could not restore display brightness (\(result))") }
-        }
     }
 
     private func builtInDisplays() throws -> [CGDirectDisplayID] {
