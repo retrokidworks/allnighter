@@ -75,8 +75,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 NSSound(named: isActive ? "Glass" : "Bottle")?.play()
             }
             wasActive = isActive
-        } onChange: {
-            Task { @MainActor [weak self] in self?.observeIcon() }
+        } onChange: { [weak self] in
+            Task { @MainActor in self?.observeIcon() }
         }
     }
 
