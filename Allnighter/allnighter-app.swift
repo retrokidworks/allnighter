@@ -99,7 +99,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         startFor.submenu = durations
         menu.addItem(startFor)
         menu.addItem(.separator())
-        #if !APP_STORE
         let dimAfter = NSMenu()
         dimAfter.addItem(toggleItem("Off", on: session.dimAfterMinutes == nil) { $0.session.setDimAfter(minutes: nil) })
         for minutes in Self.dimDelays {
@@ -108,6 +107,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let dimItem = NSMenuItem(title: "Dim display after", action: nil, keyEquivalent: "")
         dimItem.submenu = dimAfter
         menu.addItem(dimItem)
+        #if APP_STORE
+        // App Store 판은 원래 밝기를 읽을 수 없어, 돌아왔을 때의 밝기를 고른다(16칸 중).
+        if let current = session.restoreBrightnessSteps {
+            let restore = NSMenu()
+            for percent in [25, 50, 75, 100] {
+                let steps = percent * 16 / 100
+                restore.addItem(toggleItem("\(percent)%", on: current == steps) { $0.session.setRestoreBrightness(steps: steps) })
+            }
+            let restoreItem = NSMenuItem(title: "Brightness when you're back", action: nil, keyEquivalent: "")
+            restoreItem.submenu = restore
+            menu.addItem(restoreItem)
+        }
+        if session.dimNeedsReopen {
+            menu.addItem(actionItem("Reopen Allnighter to finish setup") { $0.reopen() })
+        }
+        #else
         menu.addItem(toggleItem("Stay awake with lid closed", on: session.lidAwake) { $0.session.setLidAwake(!$0.session.lidAwake) })
         #endif
         menu.addItem(toggleItem("Launch at login", on: session.launchAtLogin) { $0.session.setLaunchAtLogin(!$0.session.launchAtLogin) })
@@ -118,8 +133,41 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             menu.addItem(disabledItem(error))
         }
         menu.addItem(.separator())
+        menu.addItem(actionItem("About Allnighter") { $0.showAbout() })
         let quit = NSMenuItem(title: "Quit Allnighter", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         menu.addItem(quit)
+    }
+
+    #if APP_STORE
+    // 새 인스턴스를 띄우고 이 인스턴스는 끝낸다(종료 처리는 applicationShouldTerminate 가 한다).
+    private func reopen() {
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.createsNewApplicationInstance = true
+        NSWorkspace.shared.openApplication(at: Bundle.main.bundleURL, configuration: configuration) { _, error in
+            Task { @MainActor in
+                if let error {
+                    NSAlert(error: error).runModal()
+                    return
+                }
+                NSApp.terminate(nil)
+            }
+        }
+    }
+    #endif
+
+    // 표준 About 창에 웹사이트 링크를 단다. 메뉴바 앱이라 먼저 앞으로 가져와야 창이 다른 앱 뒤에 숨지 않는다.
+    private func showAbout() {
+        let site = "allnighter.retrokidworks.com"
+        guard let url = URL(string: "https://\(site)") else { fatalError("Invalid site URL") }
+        let credits = NSMutableAttributedString(string: site, attributes: [
+            .link: url,
+            .font: NSFont.systemFont(ofSize: NSFont.smallSystemFontSize),
+        ])
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.alignment = .center
+        credits.addAttribute(.paragraphStyle, value: paragraph, range: NSRange(location: 0, length: credits.length))
+        NSApp.activate()
+        NSApp.orderFrontStandardAboutPanel(options: [.credits: credits])
     }
 
     private var statusText: String {

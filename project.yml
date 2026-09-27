@@ -27,6 +27,8 @@ targets:
     platform: macOS
     sources:
       - path: Allnighter
+        excludes:
+          - brightness-keys-controller.swift
       - path: Shared
       - path: AllnighterHelper/com.retrokidworks.allnighter.helper.plist
         buildPhase:

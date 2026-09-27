@@ -27,16 +27,15 @@ final class SessionController {
     private let sleepBlocker = SleepBlocker()
     private var timer: Task<Void, Never>?
     private var queue: Task<Void, Never>?
-    #if !APP_STORE
     private let brightness: BrightnessController?
-    private let lid = LidController()
     private var idleWatcher: Task<Void, Never>?
+    #if !APP_STORE
+    private let lid = LidController()
     #endif
 
     init() {
         dimAfterMinutes = UserDefaults.standard.object(forKey: Self.dimAfterMinutesKey) as? Int
         lidAwake = UserDefaults.standard.bool(forKey: Self.lidAwakeKey)
-        #if !APP_STORE
         do {
             let brightness = try BrightnessController()
             // 지난번에 어둡게 한 채 죽었다면 여기서 되돌린다.
@@ -46,8 +45,24 @@ final class SessionController {
             brightness = nil
             lastError = error.localizedDescription
         }
-        #endif
     }
+
+    #if APP_STORE
+    // App Store 판은 원래 밝기를 읽을 수 없어, 돌아왔을 때의 밝기(0~16칸)를 사용자가 고른다.
+    var restoreBrightnessSteps: Int? {
+        brightness?.restoreSteps
+    }
+
+    func setRestoreBrightness(steps: Int) {
+        brightness?.restoreSteps = steps
+    }
+
+    // 어둡게 하기를 켰는데 키 권한이 아직 이 프로세스에 없다 — 허용했다면 다시 켜야 한다.
+    var dimNeedsReopen: Bool {
+        guard dimAfterMinutes != nil, let brightness else { return false }
+        return !brightness.hasAccess
+    }
+    #endif
 
     // minutes 가 nil 이면 끌 때까지 계속.
     func start(minutes: Int?) {
@@ -93,9 +108,7 @@ final class SessionController {
             #endif
             isActive = true
             schedule(minutes: minutes)
-            #if !APP_STORE
             updateIdleWatcher()
-            #endif
         } catch {
             lastError = error.localizedDescription
             await tearDown()
@@ -110,17 +123,16 @@ final class SessionController {
 
     private func performSetDimAfter(minutes: Int?) async {
         dimAfterMinutes = minutes
-        #if !APP_STORE
+        lastError = nil
         do {
             try brightness?.restorePending()
+            if minutes != nil { try brightness?.ensureAccess() }
         } catch {
             lastError = error.localizedDescription
         }
         updateIdleWatcher()
-        #endif
     }
 
-    #if !APP_STORE
     // 어느 입력이든(kCGAnyInputEventType) 마지막으로 들어온 뒤 지난 시간을 본다.
     private static let anyInput: CGEventType = {
         guard let type = CGEventType(rawValue: ~0) else { fatalError("kCGAnyInputEventType is unavailable") }
@@ -138,24 +150,32 @@ final class SessionController {
         }
         let threshold = TimeInterval(minutes * 60)
         idleWatcher = Task { [weak self] in
+            // App Store 판은 밝기 키를 보내 어둡게 하는데, 그 키도 입력으로 잡힌다. 어둡게 한 뒤 키를 다 보낼 때까지(settle)
+            // 들어온 입력은 무시하고, 그 뒤에 들어온 입력만 사람이 돌아온 것으로 본다.
+            let settle: TimeInterval = 2
+            var dimmedAt: Date?
             while !Task.isCancelled {
                 guard let self else { return }
                 let idle = CGEventSource.secondsSinceLastEventType(.hidSystemState, eventType: Self.anyInput)
                 do {
-                    if idle >= threshold {
+                    if let since = dimmedAt.map({ Date().timeIntervalSince($0) }) {
+                        if since > settle, idle < since - settle {
+                            try brightness.restorePending()
+                            dimmedAt = nil
+                        }
+                    } else if idle >= threshold {
                         try brightness.dim()
-                    } else if brightness.isDimmed {
-                        try brightness.restorePending()
+                        dimmedAt = Date()
+                        self.lastError = nil
                     }
                 } catch {
+                    // 권한을 아직 안 줬을 수 있다 — 알리고 계속 본다(허용하면 다음 차례에 된다).
                     self.lastError = error.localizedDescription
-                    return
                 }
                 try? await Task.sleep(for: .milliseconds(300))
             }
         }
     }
-    #endif
 
     private func performSetLidAwake(_ on: Bool) async {
         lidAwake = on
@@ -200,7 +220,6 @@ final class SessionController {
         timer = nil
         endsAt = nil
         sleepBlocker.disable()
-        #if !APP_STORE
         idleWatcher?.cancel()
         idleWatcher = nil
         do {
@@ -208,6 +227,7 @@ final class SessionController {
         } catch {
             if lastError == nil { lastError = error.localizedDescription }
         }
+        #if !APP_STORE
         do {
             try await lid.disable()
         } catch {

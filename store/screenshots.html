@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="en">
 <!--
-  Mac App Store 스크린샷(2880×1800). App Store 판에 있는 기능만 보여 준다(화면 어둡게·뚜껑 닫기 없음).
+  Mac App Store 스크린샷(2880×1800). App Store 판에 있는 기능만 보여 준다(뚜껑 닫기 없음, 어둡게는 밝기 키 방식).
   렌더: store/render.sh — ?shot=1, ?shot=2 를 1440×900 창·배율 2 로 찍는다.
 -->
 <head>
@@ -49,7 +49,7 @@
   .row .key { margin-left: auto; color: rgba(255, 255, 255, 0.45); }
   .sep { height: 1px; margin: 5px 10px; background: rgba(255, 255, 255, 0.14); }
   .submenu { top: 102px; right: 14px; width: 200px; }
-  .shot2 .menu.main { right: 208px; }
+  .shot1 .menu.main, .shot2 .menu.main { right: 208px; }
 </style>
 </head>
 <body>
@@ -60,19 +60,24 @@
   const row = (text, extra = '') => `<div class="row ${extra}">${text}</div>`
   const shots = {
     1: {
-      title: 'Keep your Mac awake from the menu bar.',
-      body: 'Downloads, builds, renders and long calls keep going while you step away.',
-      active: false,
+      title: 'Keep your Mac awake. Let the screen go dark.',
+      body: 'Walk away and the display dims all the way down after the time you pick. Touch the mouse and it comes back.',
+      active: true,
       menu: [
-        row('Start'),
+        row('Awake until you stop', 'dim'),
+        row('Stop'),
         row('Start for<span class="chev">›</span>'),
         '<div class="sep"></div>',
-        row('Launch at login', ''),
+        row('Dim display after<span class="chev">›</span>', 'hot'),
+        row('Brightness when you\'re back<span class="chev">›</span>'),
+        row('<span class="check">✓</span>Launch at login'),
         row('<span class="check">✓</span>Play sounds'),
-        row('Right-click the icon to start or stop', 'dim'),
         '<div class="sep"></div>',
+        row('About Allnighter'),
         row('Quit Allnighter<span class="key">⌘Q</span>'),
       ],
+      submenu: ['Off', '1 minute', '2 minutes', '5 minutes', '10 minutes', '15 minutes', '30 minutes'].map((t, i) => row(i === 3 ? '<span class="check">✓</span>' + t : t, i === 3 ? 'hot' : '')),
+      submenuTop: 130,
     },
     2: {
       title: 'Right-click to start. Right-click to stop.',
@@ -83,10 +88,13 @@
         row('Stop'),
         row('Start for<span class="chev">›</span>', 'hot'),
         '<div class="sep"></div>',
+        row('Dim display after<span class="chev">›</span>'),
+        row('Brightness when you\'re back<span class="chev">›</span>'),
         row('<span class="check">✓</span>Launch at login'),
         row('<span class="check">✓</span>Play sounds'),
         row('Right-click the icon to start or stop', 'dim'),
         '<div class="sep"></div>',
+        row('About Allnighter'),
         row('Quit Allnighter<span class="key">⌘Q</span>'),
       ],
       submenu: ['15 minutes', '30 minutes', '1 hour', '2 hours', '4 hours', '8 hours'].map((t, i) => row(t, i === 3 ? 'hot' : '')),
@@ -101,7 +109,7 @@
       <span>Sat 2:40 AM</span>
     </div>
     <div class="menu main">${shot.menu.join('')}</div>
-    ${shot.submenu ? `<div class="menu submenu">${shot.submenu.join('')}</div>` : ''}`
+    ${shot.submenu ? `<div class="menu submenu" style="top: ${shot.submenuTop || 102}px">${shot.submenu.join('')}</div>` : ''}`
 </script>
 </body>
 </html>

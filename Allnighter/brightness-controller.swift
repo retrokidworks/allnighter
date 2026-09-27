@@ -28,6 +28,9 @@ final class BrightnessController {
 
     var isDimmed: Bool { FileManager.default.fileExists(atPath: savedURL.path) }
 
+    // App Store 판(brightness-keys-controller.swift)과 사용법을 맞춘다. 직접 배포판은 권한이 필요 없다.
+    func ensureAccess() throws {}
+
     func dim() throws {
         guard !isDimmed else { return }
         var saved: [String: Float] = [:]

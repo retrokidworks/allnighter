@@ -2,15 +2,15 @@
 App Store Connect 를 저장소 값과 같게 맞추고, submit 단계에서 심사에 낸다(멱등 — 몇 번 돌려도 같은 결과).
   cd personal/allnighter/store && uvx --from pyjwt --with cryptography python asc-sync.py [단계...]
 단계: version app-info localizations screenshots age-rating pricing review build submit (생략하면 submit 빼고 전부)
-스크린샷은 render.sh 가 만든 01.jpg·02.jpg. App Store 판 기능만 적는다(화면 어둡게·뚜껑 닫기는 직접 배포판 전용).
+스크린샷은 render.sh 가 만든 01.jpg·02.jpg. App Store 판 기능만 적는다(뚜껑 닫기는 직접 배포판 전용, 어둡게는 밝기 키 방식).
 eggtimer 의 store/asc/sync.py 와 같은 틀이다. API 키는 저장소 밖 ~/.appstoreconnect/private_keys 에 있다.
 """
 import hashlib, json, os, sys, time, urllib.error, urllib.request
 import jwt
 
 APP_ID = "6816585258"
-VERSION = "0.1.1"  # tools/app-store.sh 에 준 버전과 같아야 빌드를 붙일 수 있다
-BUILD_NUMBER = "2609271248"
+VERSION = "0.1.2"  # tools/app-store.sh 에 준 버전과 같아야 빌드를 붙일 수 있다
+BUILD_NUMBER = "2609271316"
 SITE_URL = "https://allnighter.retrokidworks.com"
 PRIVACY_URL = SITE_URL + "/privacy.html"
 COPYRIGHT = "2026 retrokidworks"
@@ -27,16 +27,21 @@ LISTING = {
     "subtitle": "Keep your Mac from sleeping",
     "keywords": "awake,no sleep,prevent sleep,stay awake,insomnia,menu bar,idle,display,screen,timer,battery",
     "promotionalText": "Right-click the moon in the menu bar to start. Right-click again to stop.",
-    "description": """Allnighter keeps your Mac awake, so downloads, builds, renders, uploads and long calls keep going while you step away.
+    "description": """Allnighter keeps your Mac awake, so downloads, builds, renders, uploads and long calls keep going while you step away — and it can turn the screen down to black while it works.
 
-Right-click the moon in the menu bar to start. Right-click again to stop. Or open the menu and pick a time — 15 or 30 minutes, or 1, 2, 4 or 8 hours — and Allnighter stops on its own.
+Pick how long to wait under Dim display after. When you haven't touched the mouse or keyboard for that long, Allnighter lowers the display brightness all the way. Move the mouse and it comes back to the brightness you chose.
+
+Right-click the moon in the menu bar to start. Right-click again to stop. Or pick a time — 15 or 30 minutes, or 1, 2, 4 or 8 hours — and Allnighter stops on its own.
 
 • Lives in the menu bar, no Dock icon
+• Dims the display when you're away, brings it back when you return
 • Right-click to start or stop in one move
 • Timed sessions from 15 minutes to 8 hours
 • A short sound when a session starts and ends, which you can turn off
 • Launch at login
 • No account, no tracking, no network access
+
+Dimming works by pressing the brightness keys for you, so macOS asks you once to allow Allnighter in System Settings › Privacy & Security.
 
 Allnighter is free and open source.""",
 }
@@ -214,7 +219,13 @@ def step_review():
     attrs = {**contact, "demoAccountRequired": False,
              "notes": "Menu bar app with no Dock icon or window. Click the moon icon in the menu bar to open the menu and choose "
                       "Start, or right-click the icon to start and stop. While a session is on, the Mac does not go to idle sleep "
-                      "(visible in Terminal with `pmset -g assertions`). No account or network access is needed."}
+                      "(visible in Terminal with `pmset -g assertions`).\n\n"
+                      "Dim display after (optional): the app posts the system brightness-down / brightness-up key events "
+                      "(CGEvent, PostEvent permission) and nothing else. This is the only way to lower the display brightness "
+                      "from a sandboxed app. To test: choose Dim display after › 1 minute, allow Allnighter when System Settings "
+                      "opens, choose Reopen Allnighter to finish setup in the menu, then Start and leave the Mac untouched for one "
+                      "minute. The screen goes dark; move the mouse and brightness returns to the level chosen under "
+                      "Brightness when you're back. No account or network access is needed."}
     v = app_store_version()
     try:
         existing = call("GET", f"/v1/appStoreVersions/{v['id']}/appStoreReviewDetail")["data"]
