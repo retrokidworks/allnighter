@@ -9,8 +9,8 @@ import hashlib, json, os, sys, time, urllib.error, urllib.request
 import jwt
 
 APP_ID = "6816585258"
-VERSION = "0.1.2"  # tools/app-store.sh 에 준 버전과 같아야 빌드를 붙일 수 있다
-BUILD_NUMBER = "2609271316"
+VERSION = "0.1.3"  # tools/app-store.sh 에 준 버전과 같아야 빌드를 붙일 수 있다
+BUILD_NUMBER = "2609271331"
 SITE_URL = "https://allnighter.retrokidworks.com"
 PRIVACY_URL = SITE_URL + "/privacy.html"
 COPYRIGHT = "2026 retrokidworks"
