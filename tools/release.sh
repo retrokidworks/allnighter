@@ -63,4 +63,7 @@ spctl -a -t open --context context:primary-signature -vv "$dmg"
 
 sha=$(shasum -a 256 "$dmg" | cut -d' ' -f1)
 gh release create "v$version" "$dmg" --repo "$repo" --title "Allnighter $version" --generate-notes
-echo "released v$version sha256=$sha"
+# Homebrew cask 를 새 버전으로 맞춘다. 올리기는 scripts/personal-publish.sh homebrew-tap.
+cask=../homebrew-tap/Casks/allnighter.rb
+sed -i '' -e "s/^  version \".*\"/  version \"$version\"/" -e "s/^  sha256 \".*\"/  sha256 \"$sha\"/" "$cask"
+echo "released v$version sha256=$sha — $cask 갱신됨, 커밋 후 scripts/personal-publish.sh homebrew-tap"
