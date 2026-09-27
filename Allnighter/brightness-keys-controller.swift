@@ -62,6 +62,9 @@ final class BrightnessController {
         press(Self.brightnessUp, times: restoreSteps)
     }
 
+    // 직접 배포판과 사용법을 맞춘다. 밝기 키는 macOS 가 직접 처리해 기억하는 밝기도 함께 바뀌므로 덮어써지지 않는다.
+    func holdRestored() throws {}
+
     private func press(_ key: Int, times: Int) {
         keys.async {
             for _ in 0..<times {
