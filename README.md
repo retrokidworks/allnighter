@@ -65,8 +65,10 @@ team ID in `Shared/helper-protocol.swift`.
 
 ## Support
 
-If Allnighter saves you some trouble, you can buy me a coffee in crypto.
-USDT, USDC, ETH or BNB on BNB Smart Chain, Ethereum or any other EVM network:
+If Allnighter saves you some trouble, you can buy me a coffee on
+[GitHub Sponsors](https://github.com/sponsors/retrokidworks) — one-time or monthly.
+
+Or in crypto. USDT, USDC, ETH or BNB on BNB Smart Chain, Ethereum or any other EVM network:
 
 ```
 0x3350b5f57070Aef337C4B78F0c72266D3b1c4EBD
