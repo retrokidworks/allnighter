@@ -132,6 +132,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             menu.addItem(disabledItem(error))
         }
         menu.addItem(.separator())
+        #if !APP_STORE
+        menu.addItem(actionItem("Support Allnighter…") { $0.openSponsors() })
+        #endif
         menu.addItem(actionItem("About Allnighter") { $0.showAbout() })
         let quit = NSMenuItem(title: "Quit Allnighter", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         menu.addItem(quit)
@@ -151,6 +154,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 NSApp.terminate(nil)
             }
         }
+    }
+    #endif
+
+    #if !APP_STORE
+    // 후원 페이지를 브라우저로 연다. App Store 판에는 넣지 않는다 — 외부 결제 안내는 3.1.1 로 거절된다.
+    private func openSponsors() {
+        guard let url = URL(string: "https://github.com/sponsors/retrokidworks") else { fatalError("Invalid sponsors URL") }
+        NSWorkspace.shared.open(url)
     }
     #endif
 
