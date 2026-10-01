@@ -29,6 +29,7 @@ targets:
       - path: Allnighter
         excludes:
           - brightness-keys-controller.swift
+          - tip-jar.swift
       - path: Shared
       - path: AllnighterHelper/com.retrokidworks.allnighter.helper.plist
         buildPhase:

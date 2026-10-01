@@ -20,6 +20,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     // 소리는 켜짐/꺼짐이 실제로 바뀔 때만 낸다(첫 표시에는 내지 않는다).
     private var wasActive = false
     private static let playSoundsKey = "playSounds"
+    #if APP_STORE
+    private let tipJar = TipJar()
+    #endif
 
     override init() {
         UserDefaults.standard.register(defaults: [Self.playSoundsKey: true])
@@ -132,7 +135,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             menu.addItem(disabledItem(error))
         }
         menu.addItem(.separator())
-        #if !APP_STORE
+        #if APP_STORE
+        menu.addItem(tipJarItem())
+        #else
         menu.addItem(actionItem("Support Allnighter…") { $0.openSponsors() })
         #endif
         menu.addItem(actionItem("About Allnighter") { $0.showAbout() })
@@ -157,7 +162,40 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
     #endif
 
-    #if !APP_STORE
+    #if APP_STORE
+    // 팁은 선택이고 아무것도 풀지 않는다. 상품 줄은 "Coffee — $2.99" 처럼 스토어가 준 이름·가격 그대로다.
+    private func tipJarItem() -> NSMenuItem {
+        let tips = NSMenu()
+        switch tipJar.phase {
+        case .loading:
+            tips.addItem(disabledItem("Loading…"))
+        case .unavailable:
+            tips.addItem(disabledItem("Tips aren't available right now"))
+            tips.addItem(actionItem("Try again") { delegate in Task { await delegate.tipJar.load() } })
+        case .ready, .purchasing, .thanked, .failed:
+            if tipJar.phase == .thanked {
+                tips.addItem(disabledItem("Thank you — that keeps Allnighter free"))
+                tips.addItem(.separator())
+            }
+            if case .failed(let message) = tipJar.phase {
+                tips.addItem(disabledItem(message))
+                tips.addItem(.separator())
+            }
+            for product in tipJar.products {
+                let item = actionItem("\(product.displayName) — \(product.displayPrice)") { delegate in
+                    Task { await delegate.tipJar.buy(product) }
+                }
+                item.isEnabled = tipJar.phase != .purchasing
+                tips.addItem(item)
+            }
+        }
+        // 서브메뉴가 꺼진 항목을 꺼진 채로 그리게 한다(기본은 target 이 있으면 켠다).
+        tips.autoenablesItems = false
+        let item = NSMenuItem(title: "Tip Jar", action: nil, keyEquivalent: "")
+        item.submenu = tips
+        return item
+    }
+    #else
     // 후원 페이지를 브라우저로 연다. App Store 판에는 넣지 않는다 — 외부 결제 안내는 3.1.1 로 거절된다.
     private func openSponsors() {
         guard let url = URL(string: "https://github.com/sponsors/retrokidworks") else { fatalError("Invalid sponsors URL") }
