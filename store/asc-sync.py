@@ -1,7 +1,8 @@
 """
 App Store Connect 를 저장소 값과 같게 맞추고, submit 단계에서 심사에 낸다(멱등 — 몇 번 돌려도 같은 결과).
   cd personal/allnighter/store && uvx --from pyjwt --with cryptography python asc-sync.py [단계...]
-단계: version app-info localizations screenshots age-rating pricing review build submit (생략하면 submit 빼고 전부)
+단계: version app-info localizations screenshots age-rating pricing review build submit resubmit (생략하면 submit·resubmit 빼고 전부)
+거절된 뒤에는 고친 단계만 돌리고 resubmit(같은 제출 건을 다시 낸다).
 스크린샷은 render.sh 가 만든 01.jpg·02.jpg. App Store 판 기능만 적는다(뚜껑 닫기는 직접 배포판 전용, 어둡게는 밝기 키 방식).
 eggtimer 의 store/asc/sync.py 와 같은 틀이다. API 키는 저장소 밖 ~/.appstoreconnect/private_keys 에 있다.
 """
@@ -22,9 +23,10 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 SCREENSHOT_TYPE = "APP_DESKTOP"  # 2880×1800
 
 # 다른 앱 이름(Amphetamine·Caffeine 등)은 키워드에 넣지 않는다 — 2.3.7 로 거절된다.
+# 부제에 "Mac" 을 넣지 않는다 — 5.2.5(Apple 상표)로 거절된다.
 LISTING = {
     "name": "Allnighter – Keep Awake",
-    "subtitle": "Keep your Mac from sleeping",
+    "subtitle": "Stay awake, dim the display",
     "keywords": "awake,no sleep,prevent sleep,stay awake,insomnia,menu bar,idle,display,screen,timer,battery",
     "promotionalText": "Right-click the eye in the menu bar to start. Right-click again to stop.",
     "description": """Allnighter keeps your Mac awake, so downloads, builds, renders, uploads and long calls keep going while you step away — and it can turn the screen down to black while it works.
@@ -70,8 +72,8 @@ def rel(kind, id_):
     return {"data": {"type": kind, "id": id_}}
 
 
-# 고칠 수 있는 버전 상태. 심사 제출을 거둬들이면(reviewSubmissions canceled) DEVELOPER_REJECTED 가 된다.
-EDITABLE_STATES = ("PREPARE_FOR_SUBMISSION", "DEVELOPER_REJECTED")
+# 고칠 수 있는 버전 상태. 심사 제출을 거둬들이면(reviewSubmissions canceled) DEVELOPER_REJECTED, 심사에서 거절되면 REJECTED 가 된다.
+EDITABLE_STATES = ("PREPARE_FOR_SUBMISSION", "DEVELOPER_REJECTED", "REJECTED")
 
 
 def app_info():
@@ -260,8 +262,22 @@ def step_submit():
     print("submitted for review", submission["id"])
 
 
+def step_resubmit():
+    # 거절된 제출 건(UNRESOLVED_ISSUES)의 항목을 resolved 로 바꾼 뒤 다시 낸다. resolved 를 빼면 409 "Version is not ready".
+    subs = call("GET", f"/v1/reviewSubmissions?filter[app]={APP_ID}&filter[state]=UNRESOLVED_ISSUES&include=items")
+    if len(subs["data"]) != 1:
+        raise SystemExit("거절된 제출 건이 하나가 아니다")
+    submission = subs["data"][0]
+    for item in subs["included"]:
+        call("PATCH", f"/v1/reviewSubmissionItems/{item['id']}", {"data": {"type": "reviewSubmissionItems",
+            "id": item["id"], "attributes": {"resolved": True}}})
+    call("PATCH", f"/v1/reviewSubmissions/{submission['id']}", {"data": {"type": "reviewSubmissions",
+        "id": submission["id"], "attributes": {"submitted": True}}})
+    print("resubmitted for review", submission["id"])
+
+
 STEPS = {"version": step_version, "app-info": step_app_info, "localizations": step_localizations,
          "screenshots": step_screenshots, "age-rating": step_age_rating, "pricing": step_pricing,
-         "review": step_review, "build": step_build, "submit": step_submit}
-for name in sys.argv[1:] or [s for s in STEPS if s != "submit"]:
+         "review": step_review, "build": step_build, "submit": step_submit, "resubmit": step_resubmit}
+for name in sys.argv[1:] or [s for s in STEPS if s not in ("submit", "resubmit")]:
     STEPS[name]()
