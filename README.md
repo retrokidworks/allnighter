@@ -13,7 +13,7 @@ where it was when you stop. It can also keep a MacBook awake with the lid closed
 
 **Stay awake.** Start indefinitely or for 15 minutes to 8 hours. Stop any time.
 
-**Dim display when idle.** Pick a delay — 1 to 30 minutes. While a session is on
+**Dim display when idle.** Pick a delay — 1 to 30 minutes (5 by default), or turn it off. While a session is on
 and you haven't touched the mouse or keyboard for that long, the built-in
 backlight drops all the way to zero (not a black overlay — the backlight itself).
 Touch anything and it comes straight back to where it was. Your brightness is

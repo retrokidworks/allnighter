@@ -15,7 +15,13 @@ final class SessionController {
 
     // 세션 중 이만큼 입력이 없으면 화면을 어둡게 한다. nil 이면 어둡게 하지 않는다.
     var dimAfterMinutes: Int? {
-        didSet { UserDefaults.standard.set(dimAfterMinutes, forKey: Self.dimAfterMinutesKey) }
+        didSet {
+            if let dimAfterMinutes {
+                UserDefaults.standard.set(dimAfterMinutes, forKey: Self.dimAfterMinutesKey)
+            } else {
+                UserDefaults.standard.set(Self.dimOff, forKey: Self.dimAfterMinutesKey)
+            }
+        }
     }
     var lidAwake: Bool {
         didSet { UserDefaults.standard.set(lidAwake, forKey: Self.lidAwakeKey) }
@@ -23,6 +29,12 @@ final class SessionController {
 
     private static let dimAfterMinutesKey = "dimAfterMinutes"
     private static let lidAwakeKey = "lidAwake"
+    // 끈 것은 0 으로 적는다 — 키를 지우면 기본값으로 돌아가 버린다.
+    private static let dimOff = 0
+    #if !APP_STORE
+    // 고른 적이 없으면 5분 뒤 어둡게 한다. App Store 판은 키 권한을 먼저 받아야 해서 꺼진 채로 시작한다.
+    private static let defaultDimAfterMinutes = 5
+    #endif
 
     private let sleepBlocker = SleepBlocker()
     private var timer: Task<Void, Never>?
@@ -34,7 +46,11 @@ final class SessionController {
     #endif
 
     init() {
-        dimAfterMinutes = UserDefaults.standard.object(forKey: Self.dimAfterMinutesKey) as? Int
+        #if !APP_STORE
+        UserDefaults.standard.register(defaults: [Self.dimAfterMinutesKey: Self.defaultDimAfterMinutes])
+        #endif
+        let storedDimAfter = UserDefaults.standard.integer(forKey: Self.dimAfterMinutesKey)
+        dimAfterMinutes = storedDimAfter == Self.dimOff ? nil : storedDimAfter
         lidAwake = UserDefaults.standard.bool(forKey: Self.lidAwakeKey)
         do {
             let brightness = try BrightnessController()
