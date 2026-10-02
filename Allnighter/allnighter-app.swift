@@ -47,6 +47,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.delegate = self
         statusItem = item
         observeIcon()
+        // 앱을 켜는 것이 곧 깨어 있으라는 뜻이다 — 끌 때까지 계속되는 세션으로 시작한다.
+        session.start(minutes: nil)
     }
 
     // 종료 전에 밝기·뚜껑 설정을 되돌리고 나서 끝낸다.

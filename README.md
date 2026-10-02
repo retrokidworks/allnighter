@@ -11,7 +11,7 @@ where it was when you stop. It can also keep a MacBook awake with the lid closed
 
 ## What it does
 
-**Stay awake.** Start indefinitely or for 15 minutes to 8 hours. Stop any time.
+**Stay awake.** A session starts as soon as the app launches. Start indefinitely or for 15 minutes to 8 hours. Stop any time.
 
 **Dim display when idle.** Pick a delay — 1 to 30 minutes (5 by default), or turn it off. While a session is on
 and you haven't touched the mouse or keyboard for that long, the built-in
