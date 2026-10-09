@@ -39,8 +39,6 @@ final class LidController {
             // 로그인 항목에는 허용(enabled)으로 남았는데 launchd 에 데몬이 없을 때가 있다 — 앱을 덮어쓰거나 옮긴 뒤
             // 백그라운드 작업 관리자가 앱 경로를 잃은 경우(backgroundtaskmanagementd "fullPath is nil").
             // 등록을 지우고 다시 하면 launchd 에 올라온다. 다시 해도 안 닿으면 그대로 오류를 낸다.
-            connection?.invalidate()
-            connection = nil
             try await daemon.unregister()
             try ensureRegistered()
             try await send(true, over: currentConnection())
@@ -65,22 +63,52 @@ final class LidController {
         return connection
     }
 
+    // 응답·연결 오류·시간 초과 중 먼저 온 하나로 끝낸다. 실패하면 연결을 버린다 — 다음 요청은 새 연결로 간다.
+    // launchd 가 헬퍼를 띄우지 못하면(로그인 항목 기록이 깨져 실행 경로를 못 찾을 때) 오류도 응답도 오지 않아,
+    // 시간 제한이 없으면 세션 작업 줄이 영원히 막혀 메뉴도 종료도 듣지 않는다.
     private func send(_ on: Bool, over connection: NSXPCConnection) async throws {
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-            let proxy = connection.remoteObjectProxyWithErrorHandler { error in
-                continuation.resume(throwing: HelperUnreachable(underlying: error))
-            }
-            guard let helper = proxy as? HelperProtocol else {
-                return continuation.resume(throwing: AllnighterError("Helper proxy has the wrong type"))
-            }
-            helper.setLidAwake(on) { failure in
-                if let failure {
-                    continuation.resume(throwing: AllnighterError(failure))
-                } else {
-                    continuation.resume()
+        do {
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                let once = ResumeOnce(continuation)
+                DispatchQueue.global().asyncAfter(deadline: .now() + Self.replyTimeout) {
+                    once.resume(throwing: AllnighterError("Helper did not respond in time"))
+                }
+                let proxy = connection.remoteObjectProxyWithErrorHandler { error in
+                    once.resume(throwing: HelperUnreachable(underlying: error))
+                }
+                guard let helper = proxy as? HelperProtocol else {
+                    return once.resume(throwing: AllnighterError("Helper proxy has the wrong type"))
+                }
+                helper.setLidAwake(on) { failure in
+                    once.resume(throwing: failure.map { AllnighterError($0) })
                 }
             }
+        } catch {
+            connection.invalidate()
+            if self.connection === connection { self.connection = nil }
+            throw error
         }
+    }
+
+    private static let replyTimeout: TimeInterval = 5
+}
+
+private final class ResumeOnce: @unchecked Sendable {
+    private let lock = NSLock()
+    private var continuation: CheckedContinuation<Void, Error>?
+
+    init(_ continuation: CheckedContinuation<Void, Error>) {
+        self.continuation = continuation
+    }
+
+    // error 가 nil 이면 성공으로 끝낸다. 두 번째부터는 무시한다.
+    func resume(throwing error: Error?) {
+        lock.lock()
+        let pending = continuation
+        continuation = nil
+        lock.unlock()
+        guard let pending else { return }
+        if let error { pending.resume(throwing: error) } else { pending.resume() }
     }
 }
 
