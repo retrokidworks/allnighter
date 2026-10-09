@@ -33,9 +33,18 @@ final class LidController {
 
     func enable() async throws {
         try ensureRegistered()
-        let connection = self.connection ?? makeConnection()
-        self.connection = connection
-        try await send(true, over: connection)
+        do {
+            try await send(true, over: currentConnection())
+        } catch is HelperUnreachable {
+            // 로그인 항목에는 허용(enabled)으로 남았는데 launchd 에 데몬이 없을 때가 있다 — 앱을 덮어쓰거나 옮긴 뒤
+            // 백그라운드 작업 관리자가 앱 경로를 잃은 경우(backgroundtaskmanagementd "fullPath is nil").
+            // 등록을 지우고 다시 하면 launchd 에 올라온다. 다시 해도 안 닿으면 그대로 오류를 낸다.
+            connection?.invalidate()
+            connection = nil
+            try await daemon.unregister()
+            try ensureRegistered()
+            try await send(true, over: currentConnection())
+        }
     }
 
     func disable() async throws {
@@ -47,17 +56,19 @@ final class LidController {
         try await send(false, over: connection)
     }
 
-    private func makeConnection() -> NSXPCConnection {
+    private func currentConnection() -> NSXPCConnection {
+        if let connection { return connection }
         let connection = NSXPCConnection(machServiceName: HelperContract.machServiceName, options: .privileged)
         connection.remoteObjectInterface = NSXPCInterface(with: HelperProtocol.self)
         connection.resume()
+        self.connection = connection
         return connection
     }
 
     private func send(_ on: Bool, over connection: NSXPCConnection) async throws {
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             let proxy = connection.remoteObjectProxyWithErrorHandler { error in
-                continuation.resume(throwing: AllnighterError("Helper is not reachable: \(error.localizedDescription)"))
+                continuation.resume(throwing: HelperUnreachable(underlying: error))
             }
             guard let helper = proxy as? HelperProtocol else {
                 return continuation.resume(throwing: AllnighterError("Helper proxy has the wrong type"))
@@ -71,4 +82,10 @@ final class LidController {
             }
         }
     }
+}
+
+struct HelperUnreachable: LocalizedError {
+    let underlying: Error
+
+    var errorDescription: String? { "Helper is not reachable: \(underlying.localizedDescription)" }
 }

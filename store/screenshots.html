@@ -49,7 +49,7 @@
   .row .key { margin-left: auto; color: rgba(255, 255, 255, 0.45); }
   .sep { height: 1px; margin: 5px 10px; background: rgba(255, 255, 255, 0.14); }
   .submenu { top: 102px; right: 14px; width: 200px; }
-  .shot1 .menu.main, .shot2 .menu.main { right: 208px; }
+  .shot1 .menu.main, .shot2 .menu.main, .shottip .menu.main { right: 208px; }
 </style>
 </head>
 <body>
@@ -99,6 +99,29 @@
         row('Quit Allnighter<span class="key">⌘Q</span>'),
       ],
       submenu: ['15 minutes', '30 minutes', '1 hour', '2 hours', '4 hours', '8 hours'].map((t, i) => row(t, i === 3 ? 'hot' : '')),
+    },
+    // 인앱 상품 심사용(스토어에는 안 올린다): 팁 통 서브메뉴. 이름·가격은 asc-sync.py 의 TIPS 와 같다.
+    tip: {
+      title: 'Allnighter is free. Tips are optional.',
+      body: 'Tip Jar in the menu lists three one-time tips. A tip unlocks nothing.',
+      active: true,
+      menu: [
+        row('Awake until you stop', 'dim'),
+        row('Stop'),
+        row('Start for<span class="chev">›</span>'),
+        '<div class="sep"></div>',
+        row('Dim display after<span class="chev">›</span>'),
+        row('Brightness when you\'re back<span class="chev">›</span>'),
+        row('<span class="check">✓</span>Launch at login'),
+        row('<span class="check">✓</span>Play sounds'),
+        row('Right-click the icon to start or stop', 'dim'),
+        '<div class="sep"></div>',
+        row('Tip Jar<span class="chev">›</span>', 'hot'),
+        row('About Allnighter'),
+        row('Quit Allnighter<span class="key">⌘Q</span>'),
+      ],
+      submenu: ['Coffee — $2.99', 'Lunch — $4.99', 'A Round — $9.99'].map((t) => row(t)),
+      submenuTop: 300,
     },
   }
   const shot = shots[new URLSearchParams(location.search).get('shot')]

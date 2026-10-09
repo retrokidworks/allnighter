@@ -1,7 +1,7 @@
 """
 App Store Connect 를 저장소 값과 같게 맞추고, submit 단계에서 심사에 낸다(멱등 — 몇 번 돌려도 같은 결과).
   cd personal/allnighter/store && uvx --from pyjwt --with cryptography python asc-sync.py [단계...]
-단계: version app-info localizations screenshots age-rating pricing review build submit resubmit (생략하면 submit·resubmit 빼고 전부)
+단계: version app-info localizations screenshots age-rating pricing review iap build submit resubmit (생략하면 submit·resubmit 빼고 전부)
 거절된 뒤에는 고친 단계만 돌리고 resubmit(같은 제출 건을 다시 낸다).
 스크린샷은 render.sh 가 만든 01.jpg·02.jpg. App Store 판 기능만 적는다(뚜껑 닫기는 직접 배포판 전용, 어둡게는 밝기 키 방식).
 eggtimer 의 store/asc/sync.py 와 같은 틀이다. API 키는 저장소 밖 ~/.appstoreconnect/private_keys 에 있다.
@@ -10,8 +10,8 @@ import hashlib, json, os, sys, time, urllib.error, urllib.request
 import jwt
 
 APP_ID = "6816585258"
-VERSION = "0.1.3"  # tools/app-store.sh 에 준 버전과 같아야 빌드를 붙일 수 있다
-BUILD_NUMBER = "2609271331"
+VERSION = "0.1.8"  # tools/app-store.sh 에 준 버전과 같아야 빌드를 붙일 수 있다
+BUILD_NUMBER = "2610021246"
 SITE_URL = "https://allnighter.retrokidworks.com"
 PRIVACY_URL = SITE_URL + "/privacy.html"
 COPYRIGHT = "2026 retrokidworks"
@@ -21,6 +21,13 @@ KEY_ID, ISSUER = "2TB4M76BXX", "69a6de8b-dd84-47e3-e053-5b8c7c11a4d1"
 KEY = open(os.path.expanduser(f"~/.appstoreconnect/private_keys/AuthKey_{KEY_ID}.p8")).read()
 HERE = os.path.dirname(os.path.abspath(__file__))
 SCREENSHOT_TYPE = "APP_DESKTOP"  # 2880×1800
+# 팁 통의 소모성 상품. 상품 ID 는 Allnighter/tip-jar.swift 의 TipJar.productIDs 와 같다. 이름은 30자, 설명은 45자까지.
+# 이름·가격을 바꾸면 screenshots.html 의 tip 화면도 맞추고 render.sh 로 iap-review.png 를 다시 찍는다.
+TIPS = [
+    ("com.retrokidworks.allnighter.tip.coffee", "Coffee", "A small tip. Unlocks nothing.", "2.99"),
+    ("com.retrokidworks.allnighter.tip.lunch", "Lunch", "A bigger tip. Unlocks nothing.", "4.99"),
+    ("com.retrokidworks.allnighter.tip.round", "A Round", "A generous tip. Unlocks nothing.", "9.99"),
+]
 
 # 다른 앱 이름(Amphetamine·Caffeine 등)은 키워드에 넣지 않는다 — 2.3.7 로 거절된다.
 # 부제에 "Mac" 을 넣지 않는다 — 5.2.5(Apple 상표)로 거절된다.
@@ -227,7 +234,10 @@ def step_review():
                       "from a sandboxed app. To test: choose Dim display after › 1 minute, allow Allnighter when System Settings "
                       "opens, choose Reopen Allnighter to finish setup in the menu, then Start and leave the Mac untouched for one "
                       "minute. The screen goes dark; move the mouse and brightness returns to the level chosen under "
-                      "Brightness when you're back. No account or network access is needed."}
+                      "Brightness when you're back. No account is needed.\n\n"
+                      "A session starts as soon as the app launches; choose Stop or right-click the icon to end it.\n\n"
+                      "Tip Jar (optional): the Tip Jar submenu lists three consumable in-app purchases (Coffee, Lunch, A Round). "
+                      "They are voluntary tips and unlock nothing; every feature is free."}
     v = app_store_version()
     try:
         existing = call("GET", f"/v1/appStoreVersions/{v['id']}/appStoreReviewDetail")["data"]
@@ -239,6 +249,76 @@ def step_review():
         call("POST", "/v1/appStoreReviewDetails", {"data": {"type": "appStoreReviewDetails", "attributes": attrs,
             "relationships": {"appStoreVersion": rel("appStoreVersions", v["id"])}}})
     print("review contact", contact["contactEmail"])
+
+
+def all_territories():
+    territories = []
+    url = "/v1/territories?limit=200"
+    while url:
+        page = call("GET", url)
+        territories += [t["id"] for t in page["data"]]
+        url = page["links"].get("next")
+    return territories
+
+
+# 상품을 만들고 이름·가격·판매국·심사 스크린샷을 맞춘다(멱등). 첫 상품의 심사 제출은 API 로 안 된다 —
+# 웹 상품 페이지의 Add for Review 로 버전과 같은 제출 건에 넣는다.
+def step_iap():
+    territories = all_territories()
+    shot_path = os.path.join(HERE, "iap-review.png")
+    blob = open(shot_path, "rb").read()
+    for product_id, name, description, price in TIPS:
+        found = call("GET", f"/v1/apps/{APP_ID}/inAppPurchasesV2?filter[productId]={product_id}")["data"]
+        attrs = {"name": name, "familySharable": False,
+                 "reviewNote": "Voluntary tip from the Tip Jar submenu of the menu bar menu. It unlocks nothing."}
+        if found:
+            iap_id = found[0]["id"]
+            call("PATCH", f"/v2/inAppPurchases/{iap_id}", {"data": {"type": "inAppPurchases", "id": iap_id, "attributes": attrs}})
+        else:
+            iap_id = call("POST", "/v2/inAppPurchases", {"data": {"type": "inAppPurchases", "attributes": {
+                **attrs, "productId": product_id, "inAppPurchaseType": "CONSUMABLE"},
+                "relationships": {"app": rel("apps", APP_ID)}}})["data"]["id"]
+
+        upsert_localization("inAppPurchaseLocalizations", f"/v2/inAppPurchases/{iap_id}/inAppPurchaseLocalizations",
+                            {"inAppPurchaseV2": rel("inAppPurchases", iap_id)}, {"name": name, "description": description})
+
+        # 가격표는 새로 만들면 통째로 바뀐다. 다른 나라 가격은 USA 기준으로 Apple 이 맞춘다.
+        points = call("GET", f"/v2/inAppPurchases/{iap_id}/pricePoints?filter[territory]=USA&limit=8000")["data"]
+        point = next(p for p in points if p["attributes"]["customerPrice"] == price)
+        call("POST", "/v1/inAppPurchasePriceSchedules", {"data": {"type": "inAppPurchasePriceSchedules", "relationships": {
+            "inAppPurchase": rel("inAppPurchases", iap_id), "baseTerritory": rel("territories", "USA"),
+            "manualPrices": {"data": [{"type": "inAppPurchasePrices", "id": "${price}"}]}}},
+            "included": [{"type": "inAppPurchasePrices", "id": "${price}", "attributes": {"startDate": None},
+                          "relationships": {"inAppPurchasePricePoint": rel("inAppPurchasePricePoints", point["id"])}}]})
+
+        try:
+            call("POST", "/v1/inAppPurchaseAvailabilities", {"data": {"type": "inAppPurchaseAvailabilities",
+                "attributes": {"availableInNewTerritories": True}, "relationships": {
+                "inAppPurchase": rel("inAppPurchases", iap_id),
+                "availableTerritories": {"data": [{"type": "territories", "id": t} for t in territories]}}}})
+        except ApiError as e:
+            # 이미 판매국이 정해진 상품은 409 다.
+            if "409" not in str(e):
+                raise
+
+        # 심사 스크린샷은 하나뿐이라 있으면 지우고 다시 올린다.
+        try:
+            shot = call("GET", f"/v2/inAppPurchases/{iap_id}/appStoreReviewScreenshot")["data"]
+        except ApiError:
+            shot = None
+        if shot:
+            call("DELETE", f"/v1/inAppPurchaseAppStoreReviewScreenshots/{shot['id']}")
+        kind = "inAppPurchaseAppStoreReviewScreenshots"
+        item = call("POST", f"/v1/{kind}", {"data": {"type": kind, "attributes": {
+            "fileName": os.path.basename(shot_path), "fileSize": len(blob)}, "relationships": {
+            "inAppPurchaseV2": rel("inAppPurchases", iap_id)}}})["data"]
+        for op in item["attributes"]["uploadOperations"]:
+            req = urllib.request.Request(op["url"], method=op["method"], data=blob[op["offset"]:op["offset"] + op["length"]],
+                                         headers={h["name"]: h["value"] for h in op["requestHeaders"]})
+            urllib.request.urlopen(req).read()
+        call("PATCH", f"/v1/{kind}/{item['id']}", {"data": {"type": kind, "id": item["id"],
+            "attributes": {"uploaded": True, "sourceFileChecksum": hashlib.md5(blob).hexdigest()}}})
+        print("iap", product_id, price, "USD")
 
 
 def step_build():
@@ -278,6 +358,6 @@ def step_resubmit():
 
 STEPS = {"version": step_version, "app-info": step_app_info, "localizations": step_localizations,
          "screenshots": step_screenshots, "age-rating": step_age_rating, "pricing": step_pricing,
-         "review": step_review, "build": step_build, "submit": step_submit, "resubmit": step_resubmit}
+         "review": step_review, "iap": step_iap, "build": step_build, "submit": step_submit, "resubmit": step_resubmit}
 for name in sys.argv[1:] or [s for s in STEPS if s not in ("submit", "resubmit")]:
     STEPS[name]()
