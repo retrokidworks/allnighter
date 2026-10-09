@@ -1,4 +1,5 @@
 import Foundation
+import IOKit
 import ServiceManagement
 
 // 뚜껑을 닫아도 잠들지 않게 root 헬퍼에 요청한다. 직접 배포판에만 들어간다.
@@ -6,6 +7,18 @@ import ServiceManagement
 final class LidController {
     private let daemon = SMAppService.daemon(plistName: HelperContract.daemonPlistName)
     private var connection: NSXPCConnection?
+
+    // 뚜껑이 닫혔는지. 잠들지 않게 해 두면 닫아도 내장 화면이 원래 밝기로 켜져 있어(실측) 어둡게 하는 쪽이 본다.
+    // 뚜껑이 없는 맥에는 AppleClamshellState 가 없다 — 닫힐 일이 없다.
+    static var isClosed: Bool {
+        let root = IOServiceGetMatchingService(kIOMainPortDefault, IOServiceMatching("IOPMrootDomain"))
+        guard root != 0 else { fatalError("IOPMrootDomain not found") }
+        defer { IOObjectRelease(root) }
+        guard let value = IORegistryEntryCreateCFProperty(root, "AppleClamshellState" as CFString, kCFAllocatorDefault, 0)?
+            .takeRetainedValue() else { return false }
+        guard let closed = value as? Bool else { fatalError("AppleClamshellState is not a boolean") }
+        return closed
+    }
 
     // 사용자가 시스템 설정에서 허용했는지. 허용은 알림이 오지 않아 부르는 쪽이 들여다본다.
     var isApproved: Bool { daemon.status == .enabled }

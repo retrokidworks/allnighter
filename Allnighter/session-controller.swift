@@ -157,30 +157,44 @@ final class SessionController {
     }()
 
     // 세션이 켜져 있고 시간이 정해져 있으면, 입력이 그만큼 없을 때 어둡게 하고 입력이 들어오면 바로 되돌린다.
+    // 뚜껑 닫기를 켰으면 닫는 즉시 어둡게 하고 열면 되돌린다(시간을 정하지 않았어도).
     private func updateIdleWatcher() {
         idleWatcher?.cancel()
         idleWatcher = nil
-        guard isActive, let minutes = dimAfterMinutes else { return }
+        #if APP_STORE
+        let watchesLid = false
+        #else
+        let watchesLid = lidAwake
+        #endif
+        guard isActive, dimAfterMinutes != nil || watchesLid else { return }
         guard let brightness else {
             lastError = "Display dimming is unavailable"
             return
         }
-        let threshold = TimeInterval(minutes * 60)
+        let threshold = dimAfterMinutes.map { TimeInterval($0 * 60) }
         idleWatcher = Task { [weak self] in
             // App Store 판은 밝기 키를 보내 어둡게 하는데, 그 키도 입력으로 잡힌다. 어둡게 한 뒤 키를 다 보낼 때까지(settle)
             // 들어온 입력은 무시하고, 그 뒤에 들어온 입력만 사람이 돌아온 것으로 본다.
             let settle: TimeInterval = 2
             var dimmedAt: Date?
+            var lidWasClosed = false
             while !Task.isCancelled {
                 guard let self else { return }
                 let idle = CGEventSource.secondsSinceLastEventType(.hidSystemState, eventType: Self.anyInput)
+                #if APP_STORE
+                let lidClosed = false
+                #else
+                let lidClosed = watchesLid && LidController.isClosed
+                #endif
+                let idleExpired: Bool
+                if let threshold { idleExpired = idle >= threshold } else { idleExpired = false }
                 do {
                     if let since = dimmedAt.map({ Date().timeIntervalSince($0) }) {
-                        if since > settle, idle < since - settle {
+                        if !lidClosed, lidWasClosed || (since > settle && idle < since - settle) {
                             try brightness.restorePending()
                             dimmedAt = nil
                         }
-                    } else if idle >= threshold {
+                    } else if lidClosed || idleExpired {
                         try brightness.dim()
                         dimmedAt = Date()
                         self.lastError = nil
@@ -189,6 +203,7 @@ final class SessionController {
                     // 권한을 아직 안 줬을 수 있다 — 알리고 계속 본다(허용하면 다음 차례에 된다).
                     self.lastError = error.localizedDescription
                 }
+                lidWasClosed = lidClosed
                 try? await Task.sleep(for: .milliseconds(300))
             }
         }
@@ -205,6 +220,7 @@ final class SessionController {
         } catch {
             lastError = error.localizedDescription
         }
+        updateIdleWatcher()
         #endif
     }
 
