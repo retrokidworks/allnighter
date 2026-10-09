@@ -7,6 +7,9 @@ final class LidController {
     private let daemon = SMAppService.daemon(plistName: HelperContract.daemonPlistName)
     private var connection: NSXPCConnection?
 
+    // 사용자가 시스템 설정에서 허용했는지. 허용은 알림이 오지 않아 부르는 쪽이 들여다본다.
+    var isApproved: Bool { daemon.status == .enabled }
+
     // 헬퍼를 등록한다. 처음에는 사용자가 시스템 설정 > 로그인 항목에서 허용해야 한다.
     func ensureRegistered() throws {
         switch daemon.status {
@@ -14,7 +17,7 @@ final class LidController {
             return
         case .requiresApproval:
             SMAppService.openSystemSettingsLoginItems()
-            throw AllnighterError("Allow Allnighter in System Settings › Login Items, then try again")
+            throw LidApprovalRequired()
         case .notRegistered, .notFound:
             // 사용자 승인 전이면 register() 가 EPERM 을 던지면서 상태는 requiresApproval 로 바뀐다.
             do {
@@ -24,7 +27,7 @@ final class LidController {
             }
             if daemon.status == .requiresApproval {
                 SMAppService.openSystemSettingsLoginItems()
-                throw AllnighterError("Allow Allnighter in System Settings › Login Items, then try again")
+                throw LidApprovalRequired()
             }
         @unknown default:
             throw AllnighterError("Unknown helper status: \(daemon.status.rawValue)")
@@ -110,6 +113,10 @@ private final class ResumeOnce: @unchecked Sendable {
         guard let pending else { return }
         if let error { pending.resume(throwing: error) } else { pending.resume() }
     }
+}
+
+struct LidApprovalRequired: LocalizedError {
+    var errorDescription: String? { "Allow Allnighter in System Settings › Login Items" }
 }
 
 struct HelperUnreachable: LocalizedError {

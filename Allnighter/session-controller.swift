@@ -43,6 +43,7 @@ final class SessionController {
     private var idleWatcher: Task<Void, Never>?
     #if !APP_STORE
     private let lid = LidController()
+    private var approvalWatcher: Task<Void, Never>?
     #endif
 
     init() {
@@ -120,7 +121,7 @@ final class SessionController {
         do {
             try sleepBlocker.enable()
             #if !APP_STORE
-            if lidAwake { try await lid.enable() }
+            if lidAwake { try await enableLid() }
             #endif
             isActive = true
             schedule(minutes: minutes)
@@ -196,14 +197,53 @@ final class SessionController {
     private func performSetLidAwake(_ on: Bool) async {
         lidAwake = on
         #if !APP_STORE
+        approvalWatcher?.cancel()
+        approvalWatcher = nil
         guard isActive else { return }
         do {
-            if on { try await lid.enable() } else { try await lid.disable() }
+            if on { try await enableLid() } else { try await lid.disable() }
         } catch {
             lastError = error.localizedDescription
         }
         #endif
     }
+
+    #if !APP_STORE
+    // 헬퍼가 아직 허용 전이면 세션은 그대로 두고, 허용되는 즉시 다시 켠다 — 사용자가 메뉴를 다시 누를 필요가 없다.
+    private func enableLid() async throws {
+        approvalWatcher?.cancel()
+        approvalWatcher = nil
+        do {
+            try await lid.enable()
+        } catch let error as LidApprovalRequired {
+            lastError = error.localizedDescription
+            watchApproval()
+        }
+    }
+
+    private func watchApproval() {
+        approvalWatcher = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(1))
+                guard let self, !Task.isCancelled else { return }
+                if self.lid.isApproved {
+                    self.enqueue { await $0.performRetryLid() }
+                    return
+                }
+            }
+        }
+    }
+
+    private func performRetryLid() async {
+        guard isActive, lidAwake else { return }
+        lastError = nil
+        do {
+            try await enableLid()
+        } catch {
+            lastError = error.localizedDescription
+        }
+    }
+    #endif
 
     var launchAtLogin: Bool { SMAppService.mainApp.status == .enabled }
 
@@ -244,6 +284,8 @@ final class SessionController {
             if lastError == nil { lastError = error.localizedDescription }
         }
         #if !APP_STORE
+        approvalWatcher?.cancel()
+        approvalWatcher = nil
         do {
             try await lid.disable()
         } catch {
