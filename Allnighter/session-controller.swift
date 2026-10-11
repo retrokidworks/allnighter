@@ -2,6 +2,7 @@ import CoreGraphics
 import Foundation
 import Observation
 import ServiceManagement
+import UserNotifications
 
 // 세션 상태의 단일 진실 공급원. 모든 전환은 메인 액터에서 줄을 서서(queue) 하나씩 일어난다 —
 // XPC 를 기다리는 동안 다른 전환이 끼어들지 않고, 들어온 요청은 버려지지 않는다.
@@ -41,7 +42,7 @@ final class SessionController {
     private var queue: Task<Void, Never>?
     private let brightness: BrightnessController?
     private var idleWatcher: Task<Void, Never>?
-    private var thermalWatcher: Task<Void, Never>?
+    private var safetyWatcher: Task<Void, Never>?
     #if !APP_STORE
     private let lid = LidController()
     private var approvalWatcher: Task<Void, Never>?
@@ -63,20 +64,15 @@ final class SessionController {
             brightness = nil
             lastError = error.localizedDescription
         }
-        thermalWatcher = Task { [weak self] in
-            for await _ in NotificationCenter.default.notifications(named: ProcessInfo.thermalStateDidChangeNotification) {
-                self?.enqueue { await $0.performCoolDown() }
+        // 안전 때문에 끊으면 알린다 — 메뉴를 열어 보기 전엔 왜 멈췄는지 모른다. 거절하면 알리지 않는다.
+        Task { [weak self] in
+            do {
+                _ = try await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound])
+            } catch {
+                self?.lastError = error.localizedDescription
             }
         }
     }
-
-    // 열 압박이 heavy(.serious) 이상이면 깨어 있게 하지 않는다. 가방 속에서 뚜껑을 닫고 깨어 있던 맥이
-    // 75분 만에 heavy 에 올라 4시간을 그대로 버텼다(실측) — 그 단계에서 끊으면 된다.
-    private static var isTooHot: Bool {
-        ProcessInfo.processInfo.thermalState.rawValue >= ProcessInfo.ThermalState.serious.rawValue
-    }
-
-    private static let tooHotMessage = "Stopped: your Mac is too hot"
 
     #if APP_STORE
     // App Store 판은 원래 밝기를 읽을 수 없어, 돌아왔을 때의 밝기(0~16칸)를 사용자가 고른다.
@@ -131,8 +127,8 @@ final class SessionController {
     }
 
     private func performStart(minutes: Int?) async {
-        guard !Self.isTooHot else {
-            lastError = Self.tooHotMessage
+        if let reason = SafetyStop.current() {
+            lastError = reason.menuText
             return
         }
         lastError = nil
@@ -144,6 +140,7 @@ final class SessionController {
             isActive = true
             schedule(minutes: minutes)
             updateIdleWatcher()
+            watchSafety()
         } catch {
             lastError = error.localizedDescription
             await tearDown()
@@ -156,12 +153,25 @@ final class SessionController {
         await tearDown()
     }
 
-    // 세션을 끄고, 뚜껑이 닫혀 있으면 바로 재운다 — 잠들기 막기를 풀기만 해서는 닫힌 맥이 잠들지 않는다
-    // (충전 중엔 화면 끄기가 꺼져 있고 caffeinate 등이 유휴 잠자기를 막는다). 식어도 다시 켜지 않는다.
-    private func performCoolDown() async {
-        guard isActive, Self.isTooHot else { return }
+    // 세션 중 5초마다 끊어야 할 상황인지 본다. 판정은 줄에 선 작업 안에서 다시 한다 — 그새 바뀌었을 수 있다.
+    private func watchSafety() {
+        safetyWatcher?.cancel()
+        safetyWatcher = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(5))
+                guard let self, !Task.isCancelled else { return }
+                if SafetyStop.current() != nil { self.enqueue { await $0.performSafetyStop() } }
+            }
+        }
+    }
+
+    // 세션을 끄고 알린 뒤, 뚜껑이 닫혀 있으면 바로 재운다 — 잠들기 막기를 풀기만 해서는 닫힌 맥이 잠들지 않는다
+    // (충전 중엔 화면 끄기가 꺼져 있고 caffeinate 등이 유휴 잠자기를 막는다). 상황이 풀려도 다시 켜지 않는다.
+    private func performSafetyStop() async {
+        guard isActive, let reason = SafetyStop.current() else { return }
         await tearDown()
-        if lastError == nil { lastError = Self.tooHotMessage }
+        if lastError == nil { lastError = reason.menuText }
+        await notify(reason)
         #if !APP_STORE
         if LidController.isClosed {
             do {
@@ -171,6 +181,19 @@ final class SessionController {
             }
         }
         #endif
+    }
+
+    private func notify(_ reason: SafetyStop) async {
+        let center = UNUserNotificationCenter.current()
+        guard await center.notificationSettings().authorizationStatus == .authorized else { return }
+        let content = UNMutableNotificationContent()
+        content.title = "Allnighter stopped"
+        content.body = reason.notificationBody
+        do {
+            try await center.add(UNNotificationRequest(identifier: "safety-stop", content: content, trigger: nil))
+        } catch {
+            lastError = error.localizedDescription
+        }
     }
 
     private func performSetDimAfter(minutes: Int?) async {
@@ -192,10 +215,18 @@ final class SessionController {
     }()
 
     // 세션이 켜져 있고 시간이 정해져 있으면, 입력이 그만큼 없을 때 어둡게 하고 입력이 들어오면 바로 되돌린다.
-    // 뚜껑 닫기를 켰으면 닫는 즉시 어둡게 하고 열면 되돌린다(시간을 정하지 않았어도).
+    // 뚜껑 닫기를 켰으면 닫힌 동안 화면을 끄고, 열면 어둡게 한 것까지 되돌린다(시간을 정하지 않았어도).
     private func updateIdleWatcher() {
         idleWatcher?.cancel()
         idleWatcher = nil
+        // 이전 감시가 뚜껑이 닫힌 채 끝났으면 화면 유지가 내려가 있다 — 세션 중이면 다시 건다.
+        if isActive {
+            do {
+                try sleepBlocker.enable()
+            } catch {
+                lastError = error.localizedDescription
+            }
+        }
         #if APP_STORE
         let watchesLid = false
         #else
@@ -213,6 +244,9 @@ final class SessionController {
             let settle: TimeInterval = 2
             var dimmedAt: Date?
             var lidWasClosed = false
+            #if !APP_STORE
+            var displayOffRequestedAt: Date?
+            #endif
             while !Task.isCancelled {
                 guard let self else { return }
                 let idle = CGEventSource.secondsSinceLastEventType(.hidSystemState, eventType: Self.anyInput)
@@ -224,12 +258,15 @@ final class SessionController {
                 let idleExpired: Bool
                 if let threshold { idleExpired = idle >= threshold } else { idleExpired = false }
                 do {
+                    #if !APP_STORE
+                    try self.holdDisplayOff(lidClosed: lidClosed, lidWasClosed: lidWasClosed, requestedAt: &displayOffRequestedAt)
+                    #endif
                     if let since = dimmedAt.map({ Date().timeIntervalSince($0) }) {
                         if !lidClosed, lidWasClosed || (since > settle && idle < since - settle) {
                             try brightness.restorePending()
                             dimmedAt = nil
                         }
-                    } else if lidClosed || idleExpired {
+                    } else if !lidClosed, idleExpired {
                         try brightness.dim()
                         dimmedAt = Date()
                         self.lastError = nil
@@ -243,6 +280,26 @@ final class SessionController {
             }
         }
     }
+
+    #if !APP_STORE
+    // 뚜껑이 닫힌 동안은 화면을 아예 끈다 — 밝기 0 이어도 켜져 있으면 계속 그려 열과 배터리를 쓴다.
+    // 이 앱의 화면 유지가 걸려 있으면 끄자마자 다시 켜져(실측) 닫힌 동안은 내려놓는다. 시스템은 헬퍼가 깨워 둔다.
+    // 다른 앱의 활동 신호에 화면이 다시 켜질 수 있어, 켜져 있으면 displayOffRetry 마다 다시 끈다.
+    private func holdDisplayOff(lidClosed: Bool, lidWasClosed: Bool, requestedAt: inout Date?) throws {
+        if lidClosed {
+            if !lidWasClosed { sleepBlocker.disable() }
+            guard LidController.isBuiltInDisplayAwake else { return }
+            if let requestedAt, Date().timeIntervalSince(requestedAt) < Self.displayOffRetry { return }
+            requestedAt = Date()
+            try LidController.sleepDisplay()
+        } else if lidWasClosed {
+            requestedAt = nil
+            try sleepBlocker.enable()
+        }
+    }
+
+    private static let displayOffRetry: TimeInterval = 10
+    #endif
 
     private func performSetLidAwake(_ on: Bool) async {
         lidAwake = on
@@ -326,6 +383,8 @@ final class SessionController {
         timer?.cancel()
         timer = nil
         endsAt = nil
+        safetyWatcher?.cancel()
+        safetyWatcher = nil
         sleepBlocker.disable()
         idleWatcher?.cancel()
         idleWatcher = nil

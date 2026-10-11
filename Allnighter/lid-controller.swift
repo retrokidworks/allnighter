@@ -1,3 +1,4 @@
+import CoreGraphics
 import Foundation
 import IOKit
 import IOKit.pwr_mgt
@@ -9,7 +10,7 @@ final class LidController {
     private let daemon = SMAppService.daemon(plistName: HelperContract.daemonPlistName)
     private var connection: NSXPCConnection?
 
-    // 뚜껑이 닫혔는지. 잠들지 않게 해 두면 닫아도 내장 화면이 원래 밝기로 켜져 있어(실측) 어둡게 하는 쪽이 본다.
+    // 뚜껑이 닫혔는지. 잠들지 않게 해 두면 닫아도 내장 화면이 원래 밝기로 켜져 있어(실측) 화면을 끄는 쪽이 본다.
     // 뚜껑이 없는 맥에는 AppleClamshellState 가 없다 — 닫힐 일이 없다.
     static var isClosed: Bool {
         let root = IOServiceGetMatchingService(kIOMainPortDefault, IOServiceMatching("IOPMrootDomain"))
@@ -19,6 +20,25 @@ final class LidController {
             .takeRetainedValue() else { return false }
         guard let closed = value as? Bool else { fatalError("AppleClamshellState is not a boolean") }
         return closed
+    }
+
+    // 내장 화면이 켜져 있는지. 목록에 없으면(꺼져 빠졌으면) 켜져 있지 않다.
+    static var isBuiltInDisplayAwake: Bool {
+        var count: UInt32 = 0
+        guard CGGetOnlineDisplayList(0, nil, &count) == .success else { fatalError("CGGetOnlineDisplayList failed") }
+        var displays = [CGDirectDisplayID](repeating: 0, count: Int(count))
+        guard CGGetOnlineDisplayList(count, &displays, &count) == .success else { fatalError("CGGetOnlineDisplayList failed") }
+        return displays.prefix(Int(count)).contains { CGDisplayIsBuiltin($0) != 0 && CGDisplayIsAsleep($0) == 0 }
+    }
+
+    // 화면만 끈다. 끄는 공개 API 가 없어 pmset 이 쓰는 길을 그대로 탄다(pmset 은 SkyLight 비공개 함수를 부른다).
+    static func sleepDisplay() throws {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/pmset")
+        process.arguments = ["displaysleepnow"]
+        try process.run()
+        process.waitUntilExit()
+        guard process.terminationStatus == 0 else { throw AllnighterError("pmset displaysleepnow exited with \(process.terminationStatus)") }
     }
 
     // 지금 바로 재운다. 콘솔 사용자 프로세스면 root 가 아니어도 된다.
