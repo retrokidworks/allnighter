@@ -1,5 +1,6 @@
 import Foundation
 import IOKit
+import IOKit.pwr_mgt
 import ServiceManagement
 
 // 뚜껑을 닫아도 잠들지 않게 root 헬퍼에 요청한다. 직접 배포판에만 들어간다.
@@ -18,6 +19,15 @@ final class LidController {
             .takeRetainedValue() else { return false }
         guard let closed = value as? Bool else { fatalError("AppleClamshellState is not a boolean") }
         return closed
+    }
+
+    // 지금 바로 재운다. 콘솔 사용자 프로세스면 root 가 아니어도 된다.
+    static func sleepNow() throws {
+        let port = IOPMFindPowerManagement(kIOMainPortDefault)
+        guard port != 0 else { throw AllnighterError("IOPMFindPowerManagement failed") }
+        defer { IOServiceClose(port) }
+        let result = IOPMSleepSystem(port)
+        guard result == kIOReturnSuccess else { throw AllnighterError("Could not put the Mac to sleep (IOPMSleepSystem \(result))") }
     }
 
     // 사용자가 시스템 설정에서 허용했는지. 허용은 알림이 오지 않아 부르는 쪽이 들여다본다.

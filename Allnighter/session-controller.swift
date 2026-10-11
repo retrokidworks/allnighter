@@ -41,6 +41,7 @@ final class SessionController {
     private var queue: Task<Void, Never>?
     private let brightness: BrightnessController?
     private var idleWatcher: Task<Void, Never>?
+    private var thermalWatcher: Task<Void, Never>?
     #if !APP_STORE
     private let lid = LidController()
     private var approvalWatcher: Task<Void, Never>?
@@ -62,7 +63,20 @@ final class SessionController {
             brightness = nil
             lastError = error.localizedDescription
         }
+        thermalWatcher = Task { [weak self] in
+            for await _ in NotificationCenter.default.notifications(named: ProcessInfo.thermalStateDidChangeNotification) {
+                self?.enqueue { await $0.performCoolDown() }
+            }
+        }
     }
+
+    // 열 압박이 heavy(.serious) 이상이면 깨어 있게 하지 않는다. 가방 속에서 뚜껑을 닫고 깨어 있던 맥이
+    // 75분 만에 heavy 에 올라 4시간을 그대로 버텼다(실측) — 그 단계에서 끊으면 된다.
+    private static var isTooHot: Bool {
+        ProcessInfo.processInfo.thermalState.rawValue >= ProcessInfo.ThermalState.serious.rawValue
+    }
+
+    private static let tooHotMessage = "Stopped: your Mac is too hot"
 
     #if APP_STORE
     // App Store 판은 원래 밝기를 읽을 수 없어, 돌아왔을 때의 밝기(0~16칸)를 사용자가 고른다.
@@ -117,6 +131,10 @@ final class SessionController {
     }
 
     private func performStart(minutes: Int?) async {
+        guard !Self.isTooHot else {
+            lastError = Self.tooHotMessage
+            return
+        }
         lastError = nil
         do {
             try sleepBlocker.enable()
@@ -136,6 +154,23 @@ final class SessionController {
         guard isActive else { return }
         lastError = nil
         await tearDown()
+    }
+
+    // 세션을 끄고, 뚜껑이 닫혀 있으면 바로 재운다 — 잠들기 막기를 풀기만 해서는 닫힌 맥이 잠들지 않는다
+    // (충전 중엔 화면 끄기가 꺼져 있고 caffeinate 등이 유휴 잠자기를 막는다). 식어도 다시 켜지 않는다.
+    private func performCoolDown() async {
+        guard isActive, Self.isTooHot else { return }
+        await tearDown()
+        if lastError == nil { lastError = Self.tooHotMessage }
+        #if !APP_STORE
+        if LidController.isClosed {
+            do {
+                try LidController.sleepNow()
+            } catch {
+                lastError = error.localizedDescription
+            }
+        }
+        #endif
     }
 
     private func performSetDimAfter(minutes: Int?) async {
